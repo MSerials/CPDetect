@@ -6,7 +6,6 @@
 #define Camera_Trigger2 (1<<4)
 #define Camera_Trigger3 (1<<6)
 
-
 #define MEASURE_SPEED			Preference::GetIns()->prj->para.speed
 #define MEASURE_DIS				Preference::GetIns()->prj->para.Sensor1_Sensor2_distance
 
