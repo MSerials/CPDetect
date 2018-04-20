@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!--纯正开源之美，有趣、好玩、靠谱。。。-->
+<?xml-stylesheet type="text/css" href="style.css"?>
+<!DOCTYPE Blogs [ <!ENTITY Copyright "Copyright 2016《Qt实战一二三》"> <!ELEMENT Blogs (Blog)> <!ELEMENT Blog (作者,主页,个人说明)> <!ELEMENT 作者     (#PCDATA)> <!ELEMENT 主页     (#PCDATA)> <!ELEMENT 个人说明  (#PCDATA)> ]>
+<Blogs Version="1.0">
+    <Blog>
+        <作者>一去丶二三里</作者>
+        <主页>http://blog.csdn.net/liang19890820</主页>
+        <个人说明>青春不老，奋斗不止！</个人说明>&Copyright;<![CDATA[<Qt分享&&交流>368241647</Qt分享&&交流>]]>&gt;<Empty/>
+    </Blog>
+</Blogs>

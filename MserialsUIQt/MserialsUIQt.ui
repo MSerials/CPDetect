@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MserialsUIQtClass</class>
+ <widget class="QMainWindow" name="MserialsUIQtClass">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>704</width>
+    <height>870</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>MserialsUIQt</string>
+  </property>
+  <widget class="QWidget" name="centralWidget">
+   <widget class="QPushButton" name="pushButton_GetXml">
+    <property name="geometry">
+     <rect>
+      <x>280</x>
+      <y>760</y>
+      <width>75</width>
+      <height>23</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>获取xml</string>
+    </property>
+   </widget>
+  </widget>
+  <widget class="QMenuBar" name="menuBar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>704</width>
+     <height>23</height>
+    </rect>
+   </property>
+  </widget>
+  <widget class="QToolBar" name="mainToolBar">
+   <attribute name="toolBarArea">
+    <enum>TopToolBarArea</enum>
+   </attribute>
+   <attribute name="toolBarBreak">
+    <bool>false</bool>
+   </attribute>
+  </widget>
+  <widget class="QStatusBar" name="statusBar"/>
+ </widget>
+ <layoutdefault spacing="6" margin="11"/>
+ <resources>
+  <include location="MserialsUIQt.qrc"/>
+ </resources>
+ <connections>
+  <connection>
+   <sender>pushButton_GetXml</sender>
+   <signal>clicked()</signal>
+   <receiver>MserialsUIQtClass</receiver>
+   <slot>btn_clicked_getxml()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>496</x>
+     <y>281</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>506</x>
+     <y>341</y>
+    </hint>
+   </hints>
+  </connection>
+ </connections>
+ <slots>
+  <slot>btn_clicked_getxml()</slot>
+ </slots>
+</ui>

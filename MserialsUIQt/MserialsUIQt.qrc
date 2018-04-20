@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/MserialsUIQt">
+        <file>logo.bmp</file>
+    </qresource>
+</RCC>
