@@ -143,6 +143,7 @@
     <ClCompile Include="XmlParse.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="caffe.h" />
     <ClInclude Include="Common.h" />
     <ClInclude Include="Expression.h" />
     <ClInclude Include="FunAssembly.h" />

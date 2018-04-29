@@ -9,6 +9,7 @@
 #include <QLineEdit>
 #include <QTextEdit>
 #include <qcombobox>
+#include <memory>
 #include "Machine.h"
 #include "../MSerialsCommon/common.h"
 
@@ -44,10 +45,11 @@ public:
 	void ConnetSlot();
 	void OnInitDialog();
 	void closeEvent(QCloseEvent * ev);
-private:
-	
+	void showFileInfoList(QFileInfoList list);
 
-	Ui::QtModelSet ui;
+private:	
+
+	Ui::QtModelSet *ui;
 	//
 	QGridLayout *pGridLayout;
 	///<视频widget
@@ -55,6 +57,7 @@ private:
 
 	QSlider *slider;
 	
+	QSlider *slider_pinggaihuiduzhi = nullptr;
 
 
 	//线路一的tab设置
@@ -74,34 +77,15 @@ private:
 	QPushButton *Button_Set_As_Model;
 	QPushButton *Button_Set_As_Draw;
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+	//图像浏览器
+	std::auto_ptr<QLineEdit> fileLineEdit;
+	std::auto_ptr<QListWidget> fileListWidget;
+	std::auto_ptr<QVBoxLayout> vLayout;
+	QFileInfoList list;
+	QFileInfoList list1;
+	QFileInfoList listroot;
+	QLabel *label_brower;
+	std::auto_ptr<QComboBox> DiskDir;
 
 
 	QLabel	*label1;
@@ -124,8 +108,7 @@ private:
 	QPushButton *Button_Quit;
 	QPushButton *Button_Load_Current_Model;
 	QPushButton *Button_Model_List;
-	//本地图像浏览器
-	QLabel *label_brower;
+
 
 	//线路一按钮
 	QPushButton *Button_line1_model_chicunceliang;
@@ -138,7 +121,9 @@ private:
 
 public slots:
 	void bianxingjianceChanged();
+	void lvgaileixingChanged();
 	void silakoupingbi();
+	void pinggaihuiduzhiChanged(int);
 	void ChangeList(int);
 
 	void _Button_Show_Model();
@@ -173,28 +158,25 @@ public slots:
 	void _Button_Quit();
 	void _Button_Load_Current_Model();
 	void _Button_Model_List();
+	//本地图片浏览器
+	//--显示当前目录下的所有文件
+	void slotShow(QDir dir);
 
-
-
-
-
-
-
-
+	//----根据选择显示下一级目录下的文件，
+	void slotDirShow(QListWidgetItem *Item);
+	void slotDiskDirShow();
 
 private:
 	std::vector<QScrollArea*> m_vec_scrollArea;
 	//每个相机给定一个disp_hand
 	std::vector<Halcon::HTuple> m_disp_hd;
 	std::vector<Halcon::Hobject> m_disp_image;
+	Halcon::Hobject Image;
+
 
 	HANDLE hThread[MAX_DEVICE_NUM];
 	//终止线程
 	int hThreadExit[MAX_DEVICE_NUM];
-
-
-
-
 
 	//第一路检测参数设置
 	QTreeWidgetItem * root_item_line1_checking_params_setting = nullptr;

@@ -24,6 +24,7 @@ int main(int argc, char *argv[])
 	Preference::GetIns()->sys->SetFilePos(QString("sys.ini"));
 	QString Path = Preference::GetIns()->sys->para.Project_Name + "/prj.ini";
 	Preference::GetIns()->prj->SetFilePos(Path);
+	QDir d; d.mkdir("DL");
 	//单例模式判断后才能进行硬件的初始化，否则可能打架
 	Machine::GetIns()->MachineName();
 	QApplication a(argc, argv);
@@ -35,8 +36,6 @@ int main(int argc, char *argv[])
 
 	//程序结构不太好，导致耦合度太高，这个地方才能启动machine的线程
 	Machine::GetIns()->Start();
-	
-	
 	return a.exec();
 }
 

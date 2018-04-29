@@ -171,6 +171,9 @@
     <ClInclude Include="GeneratedFiles\ui_QtParamSet.h">
       <Filter>Generated Files</Filter>
     </ClInclude>
+    <ClInclude Include="caffe.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="MserialsUIQt.h">

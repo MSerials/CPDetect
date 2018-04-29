@@ -11,9 +11,6 @@ QtParamSet::QtParamSet(QWidget *parent)
 	ResetEvent(thread_handle);
 	CreateThread(NULL, 0, Calculate, this, 0, NULL);
 	QGridLayout *pGridLayout = new QGridLayout(this);
-
-
-
 	pGridLayout->addWidget(new QLabel(QString::fromLocal8Bit("感应器1到相机1的距离(mm)")), 0, 0, 1, 3);
 	pGridLayout->addWidget(pLineEdit_STC1 = new QLineEdit(QString::number(STC1,10,0)), 0, 3, 1, 2);
 
@@ -76,7 +73,7 @@ QtParamSet::QtParamSet(QWidget *parent)
 
 	rpos = 8;
 	pGridLayout->addWidget(new QLabel(QString::fromLocal8Bit("感应器3到色差2的距离(mm)")), rpos, 0, 1, 3);
-	pGridLayout->addWidget(pLineEdit_STCOLOR2 = new QLineEdit(QString::number(STCOLOR1, 10, 0)), rpos, 3, 1, 2);
+	pGridLayout->addWidget(pLineEdit_STCOLOR2 = new QLineEdit(QString::number(STCOLOR2, 10, 0)), rpos, 3, 1, 2);
 
 	pGridLayout->addWidget(new QLabel(QString::fromLocal8Bit("延时ms")), rpos, 5, 1, 1);
 	pGridLayout->addWidget(pLineEdit_STCOLORD2 = new QLineEdit("0"), rpos, 6, 1, 2);
@@ -86,7 +83,7 @@ QtParamSet::QtParamSet(QWidget *parent)
 
 	rpos = 9;
 	pGridLayout->addWidget(new QLabel(QString::fromLocal8Bit("感应器3到色差3的距离(mm)")), rpos, 0, 1, 3);
-	pGridLayout->addWidget(pLineEdit_STCOLOR2 = new QLineEdit(QString::number(STCOLOR1, 10, 0)), rpos, 3, 1, 2);
+	pGridLayout->addWidget(pLineEdit_STCOLOR3 = new QLineEdit(QString::number(STCOLOR3, 10, 0)), rpos, 3, 1, 2);
 
 	pGridLayout->addWidget(new QLabel(QString::fromLocal8Bit("延时ms")), rpos, 5, 1, 1);
 	pGridLayout->addWidget(pLineEdit_STCOLORD3 = new QLineEdit("0"), rpos, 6, 1, 2);
@@ -118,7 +115,7 @@ void QtParamSet::Button_Measure() {
 void QtParamSet::UpdataInfomation(QString content,int sel) {
 	pLineEdit_SPD->setText(content);
 	if (1 == sel) return;
-
+	if (speed == 0) return;
 	//计算出感应器1到相机1的延时时间
 	double _stc1 = pLineEdit_STC1->text().toDouble();
 	double _stc1d = _stc1 / speed;
@@ -143,10 +140,11 @@ void QtParamSet::UpdataInfomation(QString content,int sel) {
 
 	//工位3的延时计算
 
-
 	double _stc3 = pLineEdit_STC3->text().toDouble();
 	double _stc3d = _stc3 / speed;
 	pLineEdit_STCD3->setText(QString::number(_stc3d, 10, 0));
+
+
 
 	double _stb3 = pLineEdit_STB3->text().toDouble();
 	double _stb3d = _stb3 / speed;
@@ -200,7 +198,7 @@ void QtParamSet::closeEvent(QCloseEvent *ev) {
 		POS3BLOW_COLOR2_DELAY	= pLineEdit_STCOLORD2->text().toDouble();
 		STCOLOR3				= pLineEdit_STCOLOR3->text().toDouble();
 		POS3BLOW_COLOR3_DELAY	= pLineEdit_STCOLORD3->text().toDouble();
-
+		
 		SAVE_PARA_IO;
 		
 		return;
@@ -265,8 +263,6 @@ DWORD QtParamSet::Calculate(LPVOID lp)
 			pDlg->ticks.clear();
 		}
 		old_state = new_state;
-
-		
 	}
 
 	return 0;

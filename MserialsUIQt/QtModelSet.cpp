@@ -11,12 +11,13 @@
 #include <Windows.h>
 #include <QListWidget>
 #include "QuitTipDlg.h"
-
+#include "QString.h"
+#include <memory>
 
 QtModelSet::QtModelSet(QWidget *parent)
 	: QDialog(parent)
 {
-	ui.setupUi(this);
+	ui->setupUi(this);
 	resize(1024, 768);
 	pGridLayout = nullptr;
 	tabWidget = nullptr;
@@ -28,6 +29,7 @@ QtModelSet::QtModelSet(QWidget *parent)
 
 QtModelSet::~QtModelSet()
 {
+	delete ui;
 }
 
 
@@ -41,15 +43,13 @@ void QtModelSet::InitUI()
 	if (nullptr == pGridLayout) pGridLayout = new QGridLayout(this);
 	InitWidget();
 	initSetParamsControl();
-
-	//显示第一个参数设置面板
 	ChangeList(0);
 }
 
 //new 在widget上显示
 void QtModelSet::InitWidgets()
 {
-
+	
 }
 
 
@@ -150,14 +150,133 @@ void QtModelSet::InitWidget()
 
 	//第三个界面本地浏览器
 	{
-		static QScrollArea *scrollAreaBrower = new QScrollArea(this);
+		fileListWidget = std::auto_ptr<QListWidget>(new QListWidget(this));
 		label_brower = new QLabel(this);
-		scrollAreaBrower->setBackgroundRole(QPalette::Dark);
-		scrollAreaBrower->setWidget(label2);
-		scrollAreaBrower->setAlignment(Qt::AlignCenter);
-		pGridLayout->addWidget(scrollAreaBrower, 10, 12, 3, 3);
+		fileLineEdit = std::auto_ptr<QLineEdit>(new QLineEdit("C:/", this));
+		DiskDir = std::auto_ptr<QComboBox>(new QComboBox(this));
+
+		pGridLayout->addWidget(DiskDir.get(), 0, 12, 1, 3);
+		pGridLayout->addWidget(fileLineEdit.get(), 1, 12, 1, 3);
+		pGridLayout->addWidget(fileListWidget.get(), 2, 12, 10, 3);
+
+		//--设置对应信号与槽
+		connect(fileLineEdit.get(), SIGNAL(returnPressed()),
+			this, SLOT(slotDirShow(QDir)));
+		connect(fileListWidget.get(), SIGNAL(itemDoubleClicked(QListWidgetItem *)),
+			this, SLOT(slotDirShow(QListWidgetItem*)));
+		connect(DiskDir.get(), SIGNAL(activated(const QString &)),
+			this, SLOT(slotDiskDirShow()));
+
+
+		//盘符选择
+		QFileInfoList drivers = QDir::drives();
+		for (auto d : drivers)
+		{
+			DiskDir.get()->addItem(d.filePath());
+		}
+
+		//文件浏览
+		QString rootStr = "C:/";
+		QDir rootDir(rootStr);
+		QDir rootDir1 = rootDir;
+		QStringList stringlist;
+		QStringList stringlist1;
+	
+		stringlist << "*.jpg" << "*.bmp" << "*.png";
+		stringlist1 << "*" ;
+		list = rootDir.entryInfoList(stringlist, QDir::AllEntries, QDir::DirsFirst);
+		list1 = rootDir1.entryInfoList(stringlist1, QDir::Dirs, QDir::DirsFirst);
+		QFileInfoList list2 = list1 + list;
+		showFileInfoList(list2);
 	}
-	//if
+
+}
+
+//--显示当前目录下的所有文件
+void QtModelSet::slotShow(QDir dir)
+{
+	QDir dir1 = dir;
+	QStringList stringList;
+	QStringList stringList1;
+	stringList << "*.jpg" << "*.bmp" << "*.png" ;
+	stringList1 << "*";
+	QFileInfoList InfoList = dir.entryInfoList(stringList, QDir::AllEntries, QDir::DirsFirst);
+	QFileInfoList InfoList1 = dir1.entryInfoList(stringList1, QDir::Dirs, QDir::DirsFirst);
+	QFileInfoList InfoList2 = InfoList1+ InfoList;
+	showFileInfoList(InfoList2);
+
+}
+//---用双击浏览器中显示的目录进入下一级，或者返回上一级目录。
+void QtModelSet::showFileInfoList(QFileInfoList list)
+{
+	//--清空列表控件
+	fileListWidget->clear();
+
+	//----取出所有项，按照目录，文件方式添加到控件内
+	for (unsigned int i = 0; i < list.count(); i++)
+	{
+		QFileInfo tmpFileInfo = list.at(i);
+		if (tmpFileInfo.isDir())
+		{
+			QIcon icon("dir.png");
+			QString fileName = tmpFileInfo.fileName();
+			QListWidgetItem*tmpListWidgetItem = new QListWidgetItem(icon, fileName);
+			fileListWidget->addItem(tmpListWidgetItem);
+		}
+		else
+		{
+			QIcon icon("pic.png");
+			QString fileName = tmpFileInfo.fileName();
+			QListWidgetItem*tmpListWidgetItem = new QListWidgetItem(icon, fileName);
+			fileListWidget->addItem(tmpListWidgetItem);
+		}
+	}
+}
+
+//----根据用户的选择显示下一级目录下的文件，
+void QtModelSet::slotDirShow(QListWidgetItem *Item)
+{
+	//----保存下一级目录名
+	QString string = Item->text();
+	QDir dir;
+	//----设置路径为当前目录路径
+	dir.setPath(fileLineEdit->text());
+	//-----重新设置路径
+	dir.cd(string);
+	//----更新当前显示路径， 这里获取的是绝对路径
+	fileLineEdit->setText(dir.absolutePath());
+	//---显示当前文件目录下的所有文件
+	slotShow(dir);
+	//判断选中是否为图片
+	//读取选中的图片
+	QFileInfo IspicInfo = dir.absoluteFilePath(string);
+	if (IspicInfo.isFile() == true) {
+		std::cout << dir.absoluteFilePath(string).toLatin1().data() << std::endl;
+		try { read_image(&m_disp_image.at(0), dir.absoluteFilePath(string).toLocal8Bit().data()); 
+		h_disp_obj(m_disp_image.at(0), m_disp_hd.at(0));
+		}
+		catch (Halcon::HException &except)
+		{
+			Halcon::set_check("give_error");
+			Halcon::set_tposition(m_disp_hd.at(0), 0, 1);
+			Halcon::write_string(m_disp_hd.at(0), "no image");
+		}
+	}
+}
+
+void QtModelSet::slotDiskDirShow()
+{
+	//----保存目前选定的目录名
+	QString string = DiskDir->currentText();
+	QDir dir;
+	//----设置路径为当前目录路径
+	dir.setPath(fileLineEdit->text());
+	//-----重新设置路径
+	dir.cd(string);
+	//----更新当前显示路径， 这里获取的是绝对路径
+	fileLineEdit->setText(dir.absolutePath());
+	//---显示当前文件目录下的所有文件
+	slotShow(dir);
 }
 
 
@@ -387,32 +506,6 @@ void QtModelSet::Line1_Settings()
 
 
 
-
-	
-	//static QTableWidget *tableWidget = new QTableWidget(widget);
-	/* 设置 Id Name 字段的值不能修改 */
-	/* 设置不可修改的Id Name两列的背景颜色为灰色 */
-	
-//	
-	//pTreeWidget_line1_checking_params_stting->addTopLevelItem(root_item_line1_checking_params_setting);
-	
-	/**
-
-	int NumOfReg = 2;
-	for (int i = 0; i < NumOfReg; i++) {
-		QTableWidgetItem *item = new QTableWidgetItem();
-		item->setBackground(QBrush(QColor(Qt::lightGray)));
-		item->setFlags(item->flags() & (~Qt::ItemIsEditable));
-		tableWidget->setItem(i, 0, item);
-	}
-	for (int i = 0; i < NumOfReg; i++) {
-		QTableWidgetItem *item = new QTableWidgetItem();
-		item->setBackground(QBrush(QColor(Qt::lightGray)));
-		item->setFlags(item->flags() & (~Qt::ItemIsEditable));
-		tableWidget->setItem(i, 1, item);
-	}
-	*/
-
 	
 	pTreeWidget_line1_model_params_stting = new QTreeWidget(widget1);//新建一个QTreeWidget对象，名为pTreeWidget_line1_model_params_stting
 	//设定QTreeWidget树状选项的顶层标题，左边为参数，右边为值
@@ -435,6 +528,11 @@ void QtModelSet::Line1_Settings()
 	pComboBox_lvgaileixing->addItem(QString::fromLocal8Bit("直插"));
 	pComboBox_lvgaileixing->addItem(QString::fromLocal8Bit("撕拉"));
 	pComboBox_lvgaileixing->addItem(QString::fromLocal8Bit("商标"));
+	//
+	pComboBox_lvgaileixing->setCurrentIndex(Preference::GetIns()->prj->para.sel_lvgaileixing);
+	connect(pComboBox_lvgaileixing, SIGNAL(currentIndexChanged(int)), this, SLOT(lvgaileixingChanged()));
+
+	
 
 	QTreeWidgetItem* child_lvgaiyanse = new QTreeWidgetItem(QStringList() << QString::fromLocal8Bit("铝盖颜色"));
 	root_item_type->addChild(child_lvgaiyanse);
@@ -442,12 +540,20 @@ void QtModelSet::Line1_Settings()
 	pComboBox_lvgaiyanse->addItem(QString::fromLocal8Bit("白色"));
 	pComboBox_lvgaiyanse->addItem(QString::fromLocal8Bit("黄色"));
 
+	pComboBox_lvgaiyanse->setCurrentIndex(Preference::GetIns()->prj->para.sel_lvgaiyanse);
+	connect(pComboBox_lvgaiyanse, SIGNAL(currentIndexChanged(int)), this, SLOT(lvgaiyanseChanged()));
+
+
+
 	QTreeWidgetItem* child_tiqvfangshi = new QTreeWidgetItem(QStringList() << QString::fromLocal8Bit("提取方式"));
 	root_item_type->addChild(child_tiqvfangshi);
 	pTreeWidget_line1_model_params_stting->setItemWidget(child_tiqvfangshi, 1, pComboBox_tiqvfangshi = new QComboBox);//将QSpinBox显示到child项的第一列里
 	pComboBox_tiqvfangshi->addItem(QString::fromLocal8Bit("盖底"));
 	pComboBox_tiqvfangshi->addItem(QString::fromLocal8Bit("盖壁"));
 	pComboBox_tiqvfangshi->addItem(QString::fromLocal8Bit("压环"));
+
+	pComboBox_tiqvfangshi->setCurrentIndex(Preference::GetIns()->prj->para.sel_tiqvfangshi);
+	connect(pComboBox_tiqvfangshi, SIGNAL(currentIndexChanged(int)), this, SLOT(tiqvfangshiChanged()));
 
 	//皮带颜色设定列表
 	root_item_pidaiyanse = new QTreeWidgetItem(QStringList() << QString::fromLocal8Bit("皮带颜色设定"));
@@ -458,6 +564,9 @@ void QtModelSet::Line1_Settings()
 	pTreeWidget_line1_model_params_stting->setItemWidget(child_pidaiyanse, 1, pComboBox_pidaiyanse = new QComboBox);//将QSpinBox显示到child项的第一列里
 	pComboBox_pidaiyanse->addItem(QString::fromLocal8Bit("白皮带"));
 	pComboBox_pidaiyanse->addItem(QString::fromLocal8Bit("黑皮带"));
+
+	pComboBox_pidaiyanse->setCurrentIndex(Preference::GetIns()->prj->para.sel_pidaiyanse);
+	connect(pComboBox_pidaiyanse, SIGNAL(currentIndexChanged(int)), this, SLOT(pidaiyanseChanged()));
 
 	//铝盖区域划定列表
 	root_item_lvgaiqvyuhuading = new QTreeWidgetItem(QStringList() << QString::fromLocal8Bit("铝盖区域划定"));
@@ -482,13 +591,36 @@ void QtModelSet::Line1_Settings()
 	root_item_lvgaiqvyufenge = new QTreeWidgetItem(QStringList() << QString::fromLocal8Bit("铝盖区域分割"));
 	root_item_line1_model_params_setting->addChild(root_item_lvgaiqvyufenge);
 
+
+
+
 	child_huiduzhi = new QTreeWidgetItem(QStringList() << QString::fromLocal8Bit("铝盖灰度值"));
 	root_item_lvgaiqvyufenge->addChild(child_huiduzhi);
-	pTreeWidget_line1_model_params_stting->setItemWidget(child_huiduzhi, 1, slider = new QSlider(Qt::Horizontal));//将QSlider显示到child项的第一列里
+	QSlider * Slider_pinggaihuiduzhi = nullptr;
+	pTreeWidget_line1_model_params_stting->setItemWidget(child_huiduzhi, 1, Slider_pinggaihuiduzhi = new QSlider(Qt::Horizontal));//将QSlider显示到child项的第一列里
+	Slider_pinggaihuiduzhi->setMinimum(0);
+	Slider_pinggaihuiduzhi->setMaximum(255);
+	Slider_pinggaihuiduzhi->setSingleStep(255);
+	Slider_pinggaihuiduzhi->setValue(Preference::GetIns()->prj->para.threshold_back_cap);
+	connect(Slider_pinggaihuiduzhi, SIGNAL(valueChanged(int)), this, SLOT(pinggaihuiduzhiChanged(int)));
+
+
 
 	child_dibuhuiduzhi = new QTreeWidgetItem(QStringList() << QString::fromLocal8Bit("铝盖底部灰度值"));
 	root_item_lvgaiqvyufenge->addChild(child_dibuhuiduzhi);
 	pTreeWidget_line1_model_params_stting->setItemWidget(child_dibuhuiduzhi, 1, slider = new QSlider(Qt::Horizontal));//将QSlider显示到child项的第一列里
+
+	QSlider *Slider_dibuhuiduzhi = nullptr;
+	pTreeWidget_line1_model_params_stting->setItemWidget(child_huiduzhi, 1, Slider_dibuhuiduzhi = new QSlider(Qt::Horizontal));//将QSlider显示到child项的第一列里
+	Slider_dibuhuiduzhi->setMinimum(0);
+	Slider_dibuhuiduzhi->setMaximum(255);
+	Slider_dibuhuiduzhi->setSingleStep(255);
+	Slider_dibuhuiduzhi->setValue(Preference::GetIns()->prj->para.dibuhuiduzhi);
+	connect(Slider_dibuhuiduzhi, SIGNAL(valueChanged(int)), this, SLOT(dibuhuiduzhiChanged(int)));
+
+
+
+
 
 	child_dibufuzhuhuiduzhi = new QTreeWidgetItem(QStringList() << QString::fromLocal8Bit("铝盖底部辅助灰度值"));
 	root_item_lvgaiqvyufenge->addChild(child_dibufuzhuhuiduzhi);
@@ -540,8 +672,7 @@ void QtModelSet::Line1_Settings()
 	tabWidget_Set_Line1->addTab(pTreeWidget_line1_model_params_stting, QString::fromLocal8Bit("模板参数设置"));
 }
 
-
-//更改变形检测
+//线路一所有的槽函数
 void QtModelSet::bianxingjianceChanged()
 {
 	isParaChanged = true;
@@ -582,6 +713,14 @@ void QtModelSet::bianxingjianceChanged()
 
 }
 
+
+void QtModelSet::lvgaileixingChanged()
+{
+	isParaChanged = true;
+	int value = pComboBox_lvgaileixing->currentIndex();
+	Preference::GetIns()->prj->para_bak.sel_lvgaileixing = 0;
+}
+
 void QtModelSet::silakoupingbi() {
 	isParaChanged = true;
 	int value =  pComboBox_bianxingjiance->currentIndex();
@@ -592,6 +731,39 @@ void QtModelSet::silakoupingbi() {
 	else
 	{
 		Preference::GetIns()->prj->para_bak.b_silakoupingbi = 1;
+	}
+}
+
+
+void QtModelSet::pinggaihuiduzhiChanged(int a)
+{
+	isParaChanged = true;
+	using namespace Halcon;
+	Hobject  Image, Regions, Red, Green, Blue, Hue, inner, ConnectedRegions, MaxArea;
+	Hobject  Saturation, Intensity, Saturated, ContoursSplit;
+	Hobject  SortedContours, ObjectSelected;
+	try {
+		set_check("~give_error");
+		set_draw(m_disp_hd.at(0), "fill");
+		set_color(m_disp_hd.at(0), "red");
+		Halcon::Hobject hobj, GrayImage;
+
+
+		Halcon::decompose3(m_disp_image.at(0), &Red, &Green, &Blue);
+		trans_from_rgb(Red, Green, Blue, &Hue, &Saturation, &Intensity, "hsv");
+		threshold(Saturation, &inner, a, 255);
+		h_disp_obj(m_disp_image.at(0), m_disp_hd.at(0));
+		h_disp_obj(inner, m_disp_hd.at(0));
+
+		Preference::GetIns()->prj->para_bak.threshold_back_cap = a;
+		std::cout << "value:" << a << std::endl;
+	}
+	catch (Halcon::HException e)
+	{
+		std::cout << "error" << std::endl;
+	}
+	catch (std::out_of_range e) {
+		std::cout << e.what() << std::endl;
 	}
 }
 
@@ -1278,21 +1450,11 @@ void QtModelSet::setValue(int a){
 		set_color(m_disp_hd.at(0),"red");
 		Halcon::Hobject hobj, GrayImage;
 
-
 		Halcon::decompose3(m_disp_image.at(0), &Red, &Green, &Blue);
 		trans_from_rgb(Red, Green, Blue, &Hue, &Saturation, &Intensity, "hsv");
 		threshold(Saturation, &inner, a, 255);
 		h_disp_obj(m_disp_image.at(0), m_disp_hd.at(0));
 		h_disp_obj(inner, m_disp_hd.at(0));
-
-		/**
-		rgb1_to_gray(m_disp_image.at(0), &GrayImage);
-
-		Halcon::threshold(GrayImage,&hobj,0,double(a));
-
-		h_disp_obj(m_disp_image.at(0), m_disp_hd.at(0));
-		h_disp_obj(hobj, m_disp_hd.at(0));
-		*/
 
 		Preference::GetIns()->prj->para_bak.threshold_back_cap = a;
 		std::cout << "value:" << a << std::endl;
@@ -1321,7 +1483,7 @@ void QtModelSet::_Button_Show_Online()
 		Sleep(1);
 		SnapHobj(m_disp_image.at(0), 0, 0, 10);
 		h_disp_obj(m_disp_image.at(0), m_disp_hd.at(0));
-	}
+	} 
 	catch (Halcon::HException e)
 	{
 		std::cout << "failed to capture" << std::endl;
@@ -1414,6 +1576,7 @@ void QtModelSet::_Show_Online_Effect2()
 
 void QtModelSet::_Button_Show_Online2()
 {
+	//bug
 	//bug 3  OUT_CAM2 | OUT_CAM3 应该替换成OUT_CAM3
 	Machine::GetIns()->m_mc->Write_Output_Ex(0, OUT_CAM2 | OUT_CAM3, 1);
 	int disp = 2;
@@ -1438,7 +1601,6 @@ void QtModelSet::_Button_Show_Online2()
 
 void QtModelSet::_Button_Set_As_Model2()
 {
-
 	QString image_path = Preference::GetIns()->sys->para.Project_Name + "/line3";
 	QDir dir(image_path);
 	if (!dir.exists())
@@ -1456,7 +1618,7 @@ void QtModelSet::_Button_Set_As_Model2()
 		std::cout << "can not save image" << std::endl;
 	}
 	return;
-	return;
+
 #define POS_DETECT_COLOR 2
 	using namespace Halcon;
 	if (Machine::NO_RECT != Machine::GetIns()->RectInfo)
@@ -1525,6 +1687,7 @@ void QtModelSet::_Button_Load_Current_Model()
 void QtModelSet::_Button_Model_List()
 {
 }
+
 
 
 

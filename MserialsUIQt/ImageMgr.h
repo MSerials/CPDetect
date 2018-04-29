@@ -5,7 +5,7 @@
 #include <QObject>
 
 #ifdef _WIN64
-#pragma comment(lib,"..\\third_party\\opencv\\x64\\opencv_world320.lib")
+#pragma comment(lib,"..\\third_party\\opencv\\x64\\vc14\\lib\\opencv_world340.lib")
 #else
 #error not support x86
 #endif

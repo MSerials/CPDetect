@@ -12,6 +12,7 @@
 #include <atomic>
 #include "Ini.h"
 #include "global.h"
+#include "caffe.h"
 ///<#include <stdatomic.h> 
 ///<内联
 ///<机器的算法类和控制类都在这里面
@@ -37,30 +38,32 @@ using namespace Halcon;
 class Machine
 {
 public:
-	enum { BUTTON_VOID = 0, STOP = 1, PAUSE = 2, START = 4, SYS_STATE };
+	enum { BUTTON_VOID = 0, STOP = 1, PAUSE = 2, START = 4,ESTOP, SYS_STATE };
 	enum { NO_RECT = 0, CRICLE };
-	//瓶盖一共就四种分类，OK，NG，和四档颜色
-	enum{UNKOWN_CAP = -1,OK = 0,NG = 1,COLOR1 =2,COLOR2 =3,COLOR3 =4,COLOR4 =5};
+	//瓶盖一共就6种分类，OK，NG，和四档颜色
+	enum{UNKOWN_CAP = -1,OK = 0,NG = 1,COLOR1 =2,COLOR2 =3,COLOR3 =4,COLOR4 =5,COLOR_NG};
 
 	motion_card *m_mc = nullptr;
 	//三个相机的触发硬件控制
 	//HANDLE _IO_Scanner;
 	std::mutex  mtx_line1, mtx_line2, mtx_line3;
+	//三个相机拍照的线程
 	HANDLE _thread_line1 = CreateEvent(NULL, TRUE, FALSE, NULL);
 	HANDLE _thread_line2 = CreateEvent(NULL, TRUE, FALSE, NULL);
 	HANDLE _thread_line3 = CreateEvent(NULL, TRUE, FALSE, NULL);
+	//IO线程
 	HANDLE _thread_io = CreateEvent(NULL, TRUE, FALSE, NULL);
-
+	//工位1吹气线程
 	HANDLE _thread_blow1 = CreateEvent(NULL, TRUE, FALSE, NULL);
-
+	//工位2吹气线程
 	HANDLE _thread_blow2 = CreateEvent(NULL, TRUE, FALSE, NULL);
-
+	//工位3吹气线程
 	HANDLE _thread_blow3 = CreateEvent(NULL, TRUE, FALSE, NULL);
-
+	//工位3 色差1吹气线程
 	HANDLE _thread_blow3c1 = CreateEvent(NULL, TRUE, FALSE, NULL);
-
+	//工位3 色差2吹气线程
 	HANDLE _thread_blow3c2 = CreateEvent(NULL, TRUE, FALSE, NULL);
-
+	//工位3 色差3吹气线程
 	HANDLE _thread_blow3c3 = CreateEvent(NULL, TRUE, FALSE, NULL);
 
 private:
@@ -71,6 +74,8 @@ private:
 	//设计因素，将延时进行传导到delay里的变量
 	std::atomic<clock_t> Cam1Tick, Cam2Tick, Cam3Tick;
 	std::list<std::pair<clock_t,int>>	Camera1DelayBlow, Camera2DelayBlow, Camera3DelayBlow;
+	
+	caffe_predict *Caffe = nullptr;
 
 	Machine()
 		:alert(0)
@@ -83,8 +88,9 @@ private:
 		m_mc = new motion_card();
 		if (!m_mc->InitOk()) { delete m_mc; m_mc = nullptr; }
 		enum_cameras(TRIGGER_HARDWARE);
-		//enum_cameras();
-		//Init();
+		//load caffe
+
+		Caffe = new caffe_predict("DL/cap.prototxt","DL/cap.caffemodel","DL/words.txt",cv::Size(160,160));
 	}
 
 	~Machine()
@@ -116,12 +122,6 @@ public:
 		ResetEvent(_thread_line1);
 		ResetEvent(_thread_line2);
 		ResetEvent(_thread_line3);
-		//指定在一个核心上运行
-		SetThreadAffinityMask(CreateThread(NULL, 0, IO_Scanner, this, 0, NULL),1);
-		CreateThread(NULL, 0, Line1_Camera, this, 0, NULL);
-		CreateThread(NULL, 0, Line2_Camera, this, 0, NULL);
-		CreateThread(NULL, 0, Line3_Camera, this, 0, NULL);
-
 		ResetEvent(_thread_blow1);
 		ResetEvent(_thread_blow2);
 		ResetEvent(_thread_blow3);
@@ -129,6 +129,12 @@ public:
 		ResetEvent(_thread_blow3c2);
 		ResetEvent(_thread_blow3c3);
 
+		//_beginthreadex()函数比CreateThread()更安全
+		//指定在一个核心上运行
+		SetThreadAffinityMask(CreateThread(NULL, 0, IO_Scanner, this, 0, NULL), 1);
+		CreateThread(NULL, 0, Line1_Camera, this, 0, NULL);
+		CreateThread(NULL, 0, Line2_Camera, this, 0, NULL);
+		CreateThread(NULL, 0, Line3_Camera, this, 0, NULL);
 		CreateThread(NULL, 0, Cam1NGBlow, this, 0, NULL);
 		CreateThread(NULL, 0, Cam2NGBlow, this, 0, NULL);
 		CreateThread(NULL, 0, Cam3NGBlow, this, 0, NULL);
@@ -315,13 +321,16 @@ public:
 					SetEvent(pDlg->_thread_line3);
 				}
 
-				int co = 0;
-				//工位1的要求
+				
+				//该变量是查找是否控制变量有问题，并做出报警
+				int Unkown_cap_volume = 0;
+				//工位1的吹气控制变量
 				for (std::list<std::pair<clock_t, int>>::iterator it = pDlg->Camera1DelayBlow.begin(); it != pDlg->Camera1DelayBlow.end(); it++) {
-					//printf("conter = %d\n",co++);
 					switch (it->second) {
 						//没有任何检查的结果，什么事也不干
-					case 	Machine::UNKOWN_CAP:break;
+					case Machine::UNKOWN_CAP:
+						Unkown_cap_volume++;
+						break;
 						//NG就开始吹气,不过多线程删除得保证安全
 					case Machine::NG:
 						if ((Tick - it->first) > POS1BLOW_DELAY)
@@ -342,12 +351,13 @@ public:
 					}
 
 				}
-
-
+				//工位2的吹气控制变量
 				for (std::list<std::pair<clock_t, int>>::iterator it = pDlg->Camera2DelayBlow.begin(); it != pDlg->Camera2DelayBlow.end(); it++) {
 					switch (it->second) {
 						//没有任何检查的结果，什么事也不干
-					case 	Machine::UNKOWN_CAP:break;
+					case Machine::UNKOWN_CAP:
+						Unkown_cap_volume++;
+						break;
 						//NG就开始吹气,不过多线程删除得保证安全
 					case Machine::NG:
 						if ((Tick - it->first) > POS2BLOW_DELAY)
@@ -368,13 +378,13 @@ public:
 					}
 
 				}
-
-
-
+				//工位3的吹气控制变量
 				for (std::list<std::pair<clock_t, int>>::iterator it = pDlg->Camera3DelayBlow.begin(); it != pDlg->Camera3DelayBlow.end(); it++) {
 					switch (it->second) {
 						//没有任何检查的结果，什么事也不干
-					case 	Machine::UNKOWN_CAP:break;
+					case Machine::UNKOWN_CAP:
+						Unkown_cap_volume++;
+						break;
 						//NG就开始吹气,不过多线程删除得保证安全
 					case Machine::NG:
 						if ((Tick - it->first) > POS3BLOW_DELAY)
@@ -406,7 +416,6 @@ public:
 							pDlg->Camera3DelayBlow.erase(it);
 						}
 						break;
-
 					case Machine::COLOR3:
 						if ((Tick - it->first) > POS3BLOW_COLOR3_DELAY)
 						{
@@ -419,7 +428,6 @@ public:
 						break;
 						//COLOR4就留在最后一个工位，也不需要吹气了
 					case Machine::COLOR4:
-						
 						pDlg->Camera3DelayBlow.erase(it);
 						break;
 						//OK的就删除掉吧，也没什么用了,不过多线程删除得保证安全
@@ -427,11 +435,17 @@ public:
 						//std::lock_guard<std::mutex>  lck(pDlg->mtx_line2);
 						pDlg->Camera3DelayBlow.erase(it);
 					}
-									  break;
-									  
+						break;
 					}
 
+
+
+
 				}
+				//假设不可能超过6个瓶盖不检测，否则就报警
+				if (Unkown_cap_volume > 6) {
+
+				};
 			}
 
 
@@ -443,10 +457,8 @@ public:
 			
 		}
 	}
-#define OUT_CAM1	(1<<1)
-#define OUT_CAM2	(1<<3)
-	//对应
-#define OUT_CAM3	(1<<5)
+
+
 	static DWORD WINAPI Line1_Camera(LPVOID lpParameter) {
 		Machine * pDlg = (Machine*)lpParameter;
 		if (nullptr == pDlg->m_mc) {
@@ -539,11 +551,14 @@ public:
 			std::cout << " Line3 End Cz No Card " << std::endl;
 			return 0;
 		}
+		int  camera_index = 1;
 		Halcon::Hobject image;
+		cv::Mat mat;
 		for (;;) {
 			::WaitForSingleObject(pDlg->_thread_line3, INFINITE);
 			//硬件触发相机
-			pDlg->m_mc->Write_Output_Ex(0, OUT_CAM3, 1);
+			//but   
+			pDlg->m_mc->Write_Output_Ex(0, OUT_CAM2 | OUT_CAM3, 1);
 			//延时拍照
 			ResetEvent(pDlg->_thread_line3);
 			//延时拍照
@@ -551,8 +566,9 @@ public:
 				Halcon::set_check("~give_error");
 				//反应太快造成触发无效，所以等待1ms
 				Sleep(1);
-				//no thrid camera so using second came instead
-				SnapHobj(image, 0, 1, 10);
+				SnapMat(mat, 0, camera_index, 1);
+				if (mat.empty()) throw image;
+				MatToHImage(mat, image);
 				pDlg->h_disp_obj(image, pDlg->hdisp_hand.at(5));
 
 			}
@@ -567,13 +583,13 @@ public:
 
 			//硬件触发相机
 
-			pDlg->m_mc->Write_Output_Ex(0, OUT_CAM3, 0);
+			pDlg->m_mc->Write_Output_Ex(0, OUT_CAM2 | OUT_CAM3, 0);
 
 			//进行检测
-			int res = pDlg->front_cap_detect(image, pDlg->hdisp_hand.at(5));
+			int res = pDlg->front_cap_detect(image, pDlg->hdisp_hand.at(5),_Param(),mat);
 			{
 				//std::lock_guard<std::mutex>  lck(pDlg->mtx_line2);
-				pDlg->Camera2DelayBlow.push_back(std::pair<clock_t, int>(pDlg->Cam2Tick, res));
+				pDlg->Camera3DelayBlow.push_back(std::pair<clock_t, int>(pDlg->Cam3Tick, res));
 			}
 
 
@@ -594,6 +610,12 @@ public:
 		Hobject  MaxArea, Saturated, cap_contour, ContoursSplit;
 		Hobject  SortedContours, ObjectSelected;
 
+		//检测外凸
+		//smallest_circle(Regions, Row, Column, Radius)
+
+		//检测内凹
+		//inner_circle (Regions, Row, Column, Radius)
+
 		// Local control variables 
 		HTuple  Rows, Columns, Circularity;
 		try
@@ -607,6 +629,7 @@ public:
 			connection(innerFillUp, &ConnectedRegions);
 			select_shape_std(ConnectedRegions, &MaxArea, "max_area", 0);
 			get_region_contour(MaxArea, &Rows, &Columns);
+
 			circularity(MaxArea, &Circularity);
 			if (Circularity < p.back_circularity)
 			{
@@ -630,63 +653,41 @@ public:
 			return NG;
 		}
 		return res;
-		/**
-		//参数1
-		threshold_sub_pix(Saturation, &Saturated, 128);
-		segment_contours_xld(Saturated, &ContoursSplit, "lines_circles", 5, 4, 3);
-		sort_contours_xld(ContoursSplit, &SortedContours, "upper_left", "true", "row");
-		count_obj(SortedContours, &Number);
-		//if (HDevWindowStack::IsOpen())
-		//	set_color(HDevWindowStack::GetActive(), "red");
-		h_disp_obj(src, Disp_Hd);
-		for (i = 1; i <= Number; i += 1)
-		{
-			select_obj(SortedContours, &ObjectSelected, i);
-			circularity_xld(ObjectSelected, &Circularity);
-			if (Circularity < p.back_circularity)
-			{
-				set_color(Disp_Hd,"red");
-				res = NG;
-			}
-			else
-			{
-				set_color(Disp_Hd, "green");
-				res = OK;
-			}
-			set_tposition(Disp_Hd,10,10);
-			write_string(Disp_Hd,"C:"+ Circularity);
-			break;
-		}
-		return res;
-		*/
 	}
 
 	//侧面检查函数
 	int side_cap_detect(const Halcon::Hobject &src, Halcon::HTuple &Disp_Hd, _Param p = _Param()) {
+
 		return NG;
 	}
 
+
+
+
+
 	//正面检测函数,用于分选颜色
-	int front_cap_detect(const Halcon::Hobject &src, Halcon::HTuple &Disp_Hd, _Param p = _Param()) {
+	int front_cap_detect(const Halcon::Hobject &src, Halcon::HTuple &Disp_Hd, _Param p = _Param(),cv::Mat mat = cv::Mat()) {
 		using namespace Halcon;
 
 		int error_information = 0;
 		int txt_y_pos = 10;
+#define TXT_GAP 45
 		// Local iconic variables 
-		Hobject  ROI_0, Red, Green, Blue, Hue;
+		Hobject  ROI_0, Red, Green, Blue, Hue, Contour, ContCircle;
 		Hobject  Saturation, Intensity, ROI_1_0, reduced, RegionsMean;
 		Hobject  ContourSubPix, SelectedContours, SortedContours;
 		Hobject  selobj, thresRegion, CapRegion, ConnectedRegions,MaxArea;
 
 
 		// Local control variables 
-		HTuple  Width, Height, WindowHandle, Row, Column;
-		HTuple  Num, Mean1, Deviation1, i;
+		HTuple  Width, Height, WindowHandle, Row, Column,Circularity, StartPhi, EndPhi, PointOrder, Radius;
+		HTuple  Num, Mean1, Deviation1, i,row1,col1,row2,col2;
 
 		double r1 = p.front.r1;
 		double r2 = p.front.r2;
 		double c1 = p.front.c1;
 		double c2 = p.front.c2;
+		int color = COLOR_NG;
 		try {
 			h_disp_obj(src, Disp_Hd);
 			//area to detect 大致定位瓶盖区域
@@ -696,24 +697,53 @@ public:
 
 			trans_from_rgb(Red, Green, Blue, &Hue, &Saturation, &Intensity, "hsv");
 			get_image_size(src, &Width, &Height);
-
 	
-			gen_circle(&ROI_0, 550.5, 557.5, 88.459);
+			gen_circle(&ROI_0, 455.5, 568.5, 300.02);
 			reduce_domain(src, ROI_0, &reduced);
 
 			//regiongrowing_mean (Image, RegionsMean, Row, Column, 3, 50)
 
-
 			threshold(reduced, &CapRegion, 20, 255);
+
 			connection(CapRegion, &ConnectedRegions);
 			select_shape_std(ConnectedRegions, &MaxArea, "max_area", 50);
 			reduce_domain(src, MaxArea, &reduced);
 
 
+			circularity(MaxArea, &Circularity);
+			gen_contour_region_xld(CapRegion, &Contour, "border");
+			fit_circle_contour_xld(Contour, "geotukey", -1, 2, 0, 10, 1, &Row, &Column, &Radius,
+				&StartPhi, &EndPhi, &PointOrder);
+			Halcon::gen_circle_contour_xld(&ContCircle, Row, Column, Radius, 0, 4 * (HTuple(0).Acos()), "positive", 1);
+
+			smallest_rectangle1(MaxArea, &row1, &col1, &row2, &col2);
+			cv::Rect rt(col1[0].I(),row1[0].I(),col2[0].I()-col1[0].I(),row2[0].I()-row1[0].I());
+			cv::Mat dt;
+			mat(rt).copyTo(dt);
+			//深度学习检测
+			std::pair<std::string, float> pred = Caffe->cv_vgg_predict(dt);
+			if (0 == strcmp(pred.first.c_str(), "Label_Net_Parameter_Error")
+				|| 0 == strcmp(pred.first.c_str(), "Label_file_Error")
+				) {
+				push_button(ESTOP);
+				printf("dl file not right or label wrong or not load file\n");
+			}
+			
+				
+
+			//"cyan");
+			set_color(Disp_Hd, "cyan");
+
 			//找出需要检测的颜色区域
 			threshold(reduced, &thresRegion, 64, 255);
 
-			
+			set_color(Disp_Hd, "blue");
+			set_draw(Disp_Hd, "margin");
+			h_disp_obj(thresRegion, Disp_Hd);
+
+			set_color(Disp_Hd, "yellow");
+			h_disp_obj(MaxArea, Disp_Hd);
+
 			intensity(thresRegion, Hue, &Mean1, &Deviation1);
 
 
@@ -728,11 +758,13 @@ public:
 			{
 				set_color(Disp_Hd, "green");
 			}
-			Halcon::set_tposition(Disp_Hd, txt_y_pos += 20, 20);
+			Halcon::set_tposition(Disp_Hd, txt_y_pos += TXT_GAP, 20);
 			Halcon::write_string(Disp_Hd, "H:" + Mean1);
 
 			intensity(thresRegion, Saturation, &Mean1, &Deviation1);
-			if (Mean1 < p.saturation_limit_lower) {
+
+			
+			if (Mean1 <= p.saturation_limit_lower) {
 				error_information |= NG;
 				set_color(Disp_Hd, "red");
 			}
@@ -762,12 +794,12 @@ public:
 				}
 				
 			}
-			Halcon::set_tposition(Disp_Hd, txt_y_pos += 20, 20);
+			Halcon::set_tposition(Disp_Hd, txt_y_pos += TXT_GAP, 20);
 			Halcon::write_string(Disp_Hd, "S:" + Mean1);
 
 			intensity(thresRegion, Intensity, &Mean1, &Deviation1);
 			set_color(Disp_Hd, "green");
-			Halcon::set_tposition(Disp_Hd, txt_y_pos += 20, 20);
+			Halcon::set_tposition(Disp_Hd, txt_y_pos += TXT_GAP, 20);
 			Halcon::write_string(Disp_Hd, "G:" + Mean1);
 
 			//检测
@@ -778,22 +810,24 @@ public:
 			Halcon::write_string(Disp_Hd, "No Image");
 			return NG;
 		}
-		if (NG == NG&error_information) {
-			return NG;
-		}
-		set_color(Disp_Hd, "blue");
-		Halcon::set_tposition(Disp_Hd, txt_y_pos += 20, 20);
-		switch (error_information)
+
+		set_color(Disp_Hd, "cyan");
+		Halcon::set_tposition(Disp_Hd, txt_y_pos += TXT_GAP, 20);
+		switch (color)
 		{
-			
 		case COLOR1:Halcon::write_string(Disp_Hd, "色号1"); break;
 		case COLOR2:Halcon::write_string(Disp_Hd, "色号2"); break;
 		case COLOR3:Halcon::write_string(Disp_Hd, "色号3"); break;
 		case COLOR4:Halcon::write_string(Disp_Hd, "色号4"); break;
+		case COLOR_NG:Halcon::write_string(Disp_Hd, "色号NG"); break;
 		default:
 			break;
 		}
 		return error_information;
+
+		if (NG == NG&error_information) {
+			return NG;
+		}
 	}
 
 	/************************************图像检测部分END*********************************************************/
@@ -807,6 +841,7 @@ public:
 		case STOP:stop(); return m_system_state;
 		case PAUSE:pause(); return m_system_state;
 		case START:start(); return m_system_state;
+		case ESTOP:e_stop(); return m_system_state;
 		case SYS_STATE: return m_system_state;
 		default: return m_system_state;
 		}
@@ -854,7 +889,11 @@ public:
 		DLOG(LOG_INFO, "sytem_start");
 	}
 
-
+	void e_stop(){
+		_stop();
+		m_system_state = ESTOP;
+		DLOG(LOG_INFO, "sytem data error detected");
+	}
 
 	int get_system_state() { return m_system_state; }
 
@@ -867,15 +906,22 @@ private:
 
 	void _start()
 	{
+		_data_clear();
 		SetEvent(_thread_io);
 		return;
 	}
 
 	void _stop()
 	{
+		ResetEvent(_thread_io);
 		return;
 	}
 
+	void _data_clear() {
+		Camera1DelayBlow.clear();
+		Camera2DelayBlow.clear();
+		Camera3DelayBlow.clear();
+	}
 
 
 	/***************** SYSTEM CONTROL END ********************/

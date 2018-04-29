@@ -35,7 +35,7 @@ struct _Param {
 	_Param() {};
 	QString Project_Name = "Prj";
 
-	double back_circularity = 0.85;
+	double back_circularity = 0.9;
 
 	int b_bianxingjiance = 0;
 
@@ -47,11 +47,26 @@ struct _Param {
 
 	int b_chuancijiance = 0;
 
+	int sel_lvgaileixing = 0;
+
+	int sel_lvgaiyanse = 0;
+
+	int sel_tiqvfangshi = 0;
+
+	int sel_pidaiyanse = 0;
+
+
+
 	int Project_Index = 0;
 	//二值化瓶盖背面参数
 	int threshold_back_cap = 30;
 	//二值化瓶盖正面参数
 	int threshold_front_cap = 30;
+
+
+
+
+	int dibuhuiduzhi = 35;
 
 
 	//用于测量速度的两个感应器间距
@@ -74,23 +89,23 @@ struct _Param {
 
 	double Sensor2_To_Blow2_Delay = 243;
 
-	double Sensor3_To_Cam3 = 54;
+	double Sensor3_To_Cam3 = 118;
 
 	double Sensor3_To_Cam3_Delay = 120;
 
-	double Sensor3_To_Blow3 = 54;
+	double Sensor3_To_Blow3 = 313;
 
 	double Sensor3_To_Blow3_Delay = 100;
 
-	double Sensor3_To_Color1 = 54;
+	double Sensor3_To_Color1 = 480;
 
 	double Sensor3_To_Color1_Delay = 150;
 
-	double Sensor3_To_Color2 = 54;
+	double Sensor3_To_Color2 = 740;
 
 	double Sensor3_To_Color2_Delay = 175;
 
-	double Sensor3_To_Color3 = 54;
+	double Sensor3_To_Color3 = 930;
 
 	double Sensor3_To_Color3_Delay = 210;
 
@@ -101,12 +116,12 @@ struct _Param {
 
 	//red blue
 	double red_limt = 10;
-	double blue_limit = 32;
+	double blue_limit = 45;
 
 	//
-	double saturation_limit_lower = 10;
+	double saturation_limit_lower = 100;
 	//分色的最小区域
-	double saturation_limit_sigma = 2;
+	double saturation_limit_sigma = 30;
 	//分色四个档次
 	double saturation_limit_steop = 4;
 
