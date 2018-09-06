@@ -53,7 +53,7 @@ public:
 	}
 
 	void disp_message(Halcon::HTuple WindowHandle, Halcon::HTuple String, Halcon::HTuple CoordSystem,
-		Halcon::HTuple Row, Halcon::HTuple Column, Halcon::HTuple Color, Halcon::HTuple Box)
+		Halcon::HTuple Row, Halcon::HTuple Column, Halcon::HTuple Color, Halcon::HTuple Box, Halcon::HTuple WinWidth = 200, HTuple WinHeight = 200)
 	{
 		using namespace Halcon;
 
@@ -973,7 +973,7 @@ public:
 			Halcon::threshold(ImageMedian, &Regions, threshold_var, 255);
 			Halcon::connection(Regions, &ConnectedRegions);
 			select_shape(ConnectedRegions, &SelectedRegion, "area", "and", cap_select_area_var,
-				90000);
+				900000);
 			select_shape(SelectedRegion, &SelectedRegion, "circularity", "and", 0.5, 1);
 			select_shape_std(SelectedRegion, &SelectedRegion, "max_area", 0.6);
 			fill_up(SelectedRegion, &FilledRegion);
@@ -985,6 +985,7 @@ public:
 			decompose3(Image_Meaned, &red, &green, &blue);
 			trans_from_rgb(red, green, blue, &H_Seg, &S_Seg, &V_Seg, "hsv");
 			isOK = 1;
+			Color_Class = 0;
 			try
 			{
 				gray_histo(FilledRegion, S_Seg, &AbsoluteHistoS, &RelativeHistoS);
@@ -992,29 +993,28 @@ public:
 				Halcon::threshold(S_Seg, &ErrorRegion, PeakGrayS + peak_lower, PeakGrayS + peak_upper);
 				Halcon::connection(ErrorRegion, &ErrorRegions);
 				Halcon::count_obj(ErrorRegions, &NumObj);
-				Color_Class = 0;
+				
 
-
+				/**
 				Halcon::histo_to_thresh(RelativeHistoS, 2, &MinThresh, &MaxThresh);
-				if (HDevWindowStack::IsOpen())
-					set_colored(HDevWindowStack::GetActive(), 12);
+
+				set_colored(WindowHandle, 12);
 				Halcon::threshold(S_Seg, &Region, MinThresh, MaxThresh);
-
-
-				if (HDevWindowStack::IsOpen())
-					disp_obj(Region, HDevWindowStack::GetActive());
-				if (HDevWindowStack::IsOpen())
-					disp_obj(Image, HDevWindowStack::GetActive());
+				*/
+				h_disp_obj(Image, WindowHandle);
 				for (i = 1; i <= NumObj; i += 1)
 				{
 					select_obj(ErrorRegions, &Selected, i);
 					area_center(Selected, &Area, &R, &C);
 					if (0 != (Area > NG_area_lower))
 					{
-						if (HDevWindowStack::IsOpen())
-							disp_obj(Selected, HDevWindowStack::GetActive());
-						disp_message(WindowHandle, Area.ToString(".2"), "window", R, C, "black",
-							"true");
+						Halcon::set_color(WindowHandle, "red");
+					    disp_obj(Selected, WindowHandle);
+						Halcon::set_color(WindowHandle, "#FF00FF");
+						Halcon::set_tposition(WindowHandle, R, C);
+						Halcon::write_string(WindowHandle, Area.ToString(".2"));
+						//disp_message(WindowHandle, Area.ToString(".2"), "window", R, C, "black",
+						//	"true");
 						isOK = 0;
 					}
 				}
@@ -1038,16 +1038,26 @@ public:
 				disp_message(WindowHandle, exception, "window", 10, 10, "black", "true");
 			}
 
-			Halcon::set_tposition(WindowHandle, 10, 10);
+			int ColorClass = Color_Class[0].I();
+			Halcon::set_tposition(WindowHandle, 1, 1);
 			string_back = "■■■■■■■■■■■■■■■■■■■■";
 			Halcon::set_color(WindowHandle, "black");
 			Halcon::write_string(WindowHandle, string_back);
-			Halcon::set_color(WindowHandle, "white");
-			Halcon::set_tposition(WindowHandle, 10, 10);
-			Halcon::write_string(WindowHandle, (("S:" + (PeakGrayS.ToString(".3"))) + "clase:") + (Color_Class.ToString(".2")));
-			int ColorClass = Color_Class[0].I();
-			int IsOK = isOK[0].I();
+			Halcon::set_color(WindowHandle, "yellow");
+			Halcon::set_tposition(WindowHandle, 1, 1);
+			Halcon::write_string(WindowHandle, (("S:" + (PeakGrayS.ToString(".3"))) + " 颜色归档:") + (Color_Class.ToString(".2")));
+			
+			int IsOK = NG;
+			if (isOK > 0)
+			{
+				IsOK = OK;
+			}
+			else
+			{
+				IsOK = NG;
+			}
 			int res = IsOK | (ColorClass << COLOR_GET);
+			return res;
 		}
 		catch (Halcon::HException Exception)
 		{
