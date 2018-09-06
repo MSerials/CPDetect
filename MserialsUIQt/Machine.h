@@ -1040,7 +1040,7 @@ public:
 
 			int ColorClass = Color_Class[0].I();
 			Halcon::set_tposition(WindowHandle, 1, 1);
-			string_back = "■■■■■■■■■■■■■■■■■■■■";
+			string_back = "■■■■■■■■■■■■■■■■■■■";
 			Halcon::set_color(WindowHandle, "black");
 			Halcon::write_string(WindowHandle, string_back);
 			Halcon::set_color(WindowHandle, "yellow");
