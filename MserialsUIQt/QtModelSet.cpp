@@ -71,43 +71,68 @@ void QtModelSet::InitWidget()
 		scrollArea->setAlignment(Qt::AlignCenter);
 		gridLayout->addWidget(scrollArea, 0, 0, 4, 6);
 		Button_Show_Model = new QPushButton(QString::fromLocal8Bit("显示模板图像"));
-		gridLayout->addWidget(Button_Show_Model, 6, 0, 1, 1);
+		gridLayout->addWidget(Button_Show_Model, 6, 0, 1, 2);
 		Button_Show_Online = new QPushButton(QString::fromLocal8Bit("显示在线图像"));
-		gridLayout->addWidget(Button_Show_Online, 6, 2, 1, 1);
+		gridLayout->addWidget(Button_Show_Online, 6, 2, 1, 2);
 		Button_Set_As_Model = new QPushButton(QString::fromLocal8Bit("设为模板图像"));
-		gridLayout->addWidget(Button_Set_As_Model, 6, 4, 1, 1);
+		gridLayout->addWidget(Button_Set_As_Model, 6, 4, 1, 2);
 		tabWidget->addTab(widget1, QString::fromLocal8Bit("线路1"));
 
+		//通道2显示
 		static QWidget *widget2 = new QWidget(this);
 		static QGridLayout *gridLayout1 = new QGridLayout(widget2);
+
+
+		Button_Show_Model1 = new QPushButton(QString::fromLocal8Bit("显示模板图像"));
+		gridLayout1->addWidget(Button_Show_Model1, 6, 0, 1, 2);
+		Button_Show_Online1 = new QPushButton(QString::fromLocal8Bit("显示在线图像"));
+		gridLayout1->addWidget(Button_Show_Online1, 6, 2, 1, 2);
+		Button_Set_As_Model1 = new QPushButton(QString::fromLocal8Bit("设为模板图像"));
+		gridLayout1->addWidget(Button_Set_As_Model1, 6, 4, 1, 2);
+		tabWidget->addTab(widget2, QString::fromLocal8Bit("线路2"));
+
 		label1 = new QLabel(this);
 		scrollArea1 = new QScrollArea(this);
 		scrollArea1->setBackgroundRole(QPalette::Dark);
 		scrollArea1->setWidget(label1);
 		scrollArea1->setAlignment(Qt::AlignCenter);
-		gridLayout1->addWidget(scrollArea1, 0, 0, 4, 6);
-		Button_Show_Model1 = new QPushButton(QString::fromLocal8Bit("显示模板图像"));
-		gridLayout1->addWidget(Button_Show_Model1, 6, 0, 1, 1);
-		Button_Show_Online1 = new QPushButton(QString::fromLocal8Bit("显示在线图像"));
-		gridLayout1->addWidget(Button_Show_Online1, 6, 2, 1, 1);
-		Button_Set_As_Model1 = new QPushButton(QString::fromLocal8Bit("设为模板图像"));
-		gridLayout1->addWidget(Button_Set_As_Model1, 6, 4, 1, 1);
-		tabWidget->addTab(widget2, QString::fromLocal8Bit("线路2"));
+
+		scrollArea2 = new QScrollArea(this);
+		scrollArea2->setBackgroundRole(QPalette::Dark);
+		scrollArea2->setWidget(new QLabel(this));
+		scrollArea2->setAlignment(Qt::AlignCenter);
+
+		scrollArea3 = new QScrollArea(this);
+		scrollArea3->setBackgroundRole(QPalette::Dark);
+		scrollArea3->setWidget(new QLabel(this));
+		scrollArea3->setAlignment(Qt::AlignCenter);
+
+		scrollArea4 = new QScrollArea(this);
+		scrollArea4->setBackgroundRole(QPalette::Dark);
+		scrollArea4->setWidget(new QLabel(this));
+		scrollArea4->setAlignment(Qt::AlignCenter);
+
+		gridLayout1->addWidget(scrollArea1, 0, 0, 2, 3);
+		gridLayout1->addWidget(scrollArea2, 0, 3, 2, 3);
+		gridLayout1->addWidget(scrollArea3, 2, 0, 2, 3);
+		gridLayout1->addWidget(scrollArea4, 2, 3, 2, 3);
+
+
 
 		static QWidget *widget3 = new QWidget(this);
 		static QGridLayout *gridLayout2 = new QGridLayout(widget3);
 		label2 = new QLabel(this);
-		scrollArea2 = new QScrollArea(this);
-		scrollArea2->setBackgroundRole(QPalette::Dark);
-		scrollArea2->setWidget(label2);
-		scrollArea2->setAlignment(Qt::AlignCenter);
-		gridLayout2->addWidget(scrollArea2, 0, 0, 4, 6);
+		scrollArea5 = new QScrollArea(this);
+		scrollArea5->setBackgroundRole(QPalette::Dark);
+		scrollArea5->setWidget(label2);
+		scrollArea5->setAlignment(Qt::AlignCenter);
+		gridLayout2->addWidget(scrollArea5, 0, 0, 4, 6);
 		Button_Show_Model2 = new QPushButton(QString::fromLocal8Bit("显示模板图像"));
-		gridLayout2->addWidget(Button_Show_Model2, 6, 0, 1, 1);
+		gridLayout2->addWidget(Button_Show_Model2, 6, 0, 1, 2);
 		Button_Show_Online2 = new QPushButton(QString::fromLocal8Bit("显示在线图像"));
-		gridLayout2->addWidget(Button_Show_Online2, 6, 2, 1, 1);
+		gridLayout2->addWidget(Button_Show_Online2, 6, 2, 1, 2);
 		Button_Set_As_Model2 = new QPushButton(QString::fromLocal8Bit("设为模板图像"));
-		gridLayout2->addWidget(Button_Set_As_Model2, 6, 4, 1, 1);
+		gridLayout2->addWidget(Button_Set_As_Model2, 6, 4, 1, 2);
 		tabWidget->addTab(widget3, QString::fromLocal8Bit("线路3"));
 
 		pGridLayout->addWidget(tabWidget,1, 0, 7, 6);
@@ -1475,7 +1500,44 @@ void QtModelSet::_Show_Online_Effect() {
 
 void QtModelSet::_Button_Show_Online()
 {
+	//线路1拍摄
+	if (0 == global::GetIns()->camera_found)
+	{
 
+		//定义文件对话框类
+		QFileDialog *fileDialog = new QFileDialog(this);
+		//定义文件对话框标题
+		fileDialog->setWindowTitle(tr("打开图片"));
+		//设置默认文件路径
+		fileDialog->setDirectory(".");
+		//设置文件过滤器
+		fileDialog->setNameFilter(tr("Images(*.png *.jpg *.jpeg *.bmp)"));
+		//设置可以选择多个文件,默认为只能选择一个文件QFileDialog::ExistingFiles
+		fileDialog->setFileMode(QFileDialog::ExistingFiles);
+		//设置视图模式
+		fileDialog->setViewMode(QFileDialog::Detail);
+		//打印所有选择的文件的路径
+		QStringList fileNames;
+		if (fileDialog->exec())
+		{
+			fileNames = fileDialog->selectedFiles();
+			for (auto fileName: fileNames)
+			{
+				try {
+					Halcon::read_image(&m_disp_image.at(0),fileName.toLatin1().data());
+					h_disp_obj(m_disp_image.at(0), m_disp_hd.at(0));
+					break;
+				}
+				catch (Halcon::HException ex)
+				{
+
+				}
+			}
+		}
+
+		return;
+	}
+	//
 	Machine::GetIns()->m_mc->Write_Output_Ex(0, OUT_CAM1, 1);
 	try {
 		Halcon::set_check("~give_error");
@@ -1531,14 +1593,66 @@ void QtModelSet::_Show_Online_Effect1()
 {
 }
 
+
+//线路2拍摄
 void QtModelSet::_Button_Show_Online1()
 {
+	if (5 > global::GetIns()->camera_found)
+	{
+
+		//定义文件对话框类
+		QFileDialog *fileDialog = new QFileDialog(this);
+		//定义文件对话框标题
+		fileDialog->setWindowTitle(tr("打开图片"));
+		//设置默认文件路径
+		fileDialog->setDirectory(".");
+		//设置文件过滤器
+		fileDialog->setNameFilter(tr("Images(*.png *.jpg *.jpeg *.bmp)"));
+		//设置可以选择多个文件,默认为只能选择一个文件QFileDialog::ExistingFiles
+		fileDialog->setFileMode(QFileDialog::ExistingFiles);
+		//设置视图模式
+		fileDialog->setViewMode(QFileDialog::Detail);
+		//打印所有选择的文件的路径
+		QStringList fileNames;
+		if (fileDialog->exec())
+		{
+			fileNames = fileDialog->selectedFiles();
+			for (auto fileName : fileNames)
+			{
+				try {
+					Halcon::read_image(&m_disp_image.at(1), fileName.toLatin1().data());
+					h_disp_obj(m_disp_image.at(1), m_disp_hd.at(1));
+					h_disp_obj(m_disp_image.at(1), m_disp_hd.at(2));
+					h_disp_obj(m_disp_image.at(1), m_disp_hd.at(3));
+					h_disp_obj(m_disp_image.at(1), m_disp_hd.at(4));
+					break;
+				}
+				catch (Halcon::HException ex)
+				{
+
+				}
+			}
+		}
+
+		return;
+	}
+
+
+
+
+
 	Machine::GetIns()->m_mc->Write_Output_Ex(0, OUT_CAM2, 1);
 	try {
 		Halcon::set_check("~give_error");
 		Sleep(1);
 		SnapHobj(m_disp_image.at(1), 0, 1, 10);
+		SnapHobj(m_disp_image.at(2), 0, 2, 10);
+		SnapHobj(m_disp_image.at(3), 0, 3, 10);
+		SnapHobj(m_disp_image.at(4), 0, 4, 10);
 		h_disp_obj(m_disp_image.at(1), m_disp_hd.at(1));
+		h_disp_obj(m_disp_image.at(2), m_disp_hd.at(2));
+		h_disp_obj(m_disp_image.at(3), m_disp_hd.at(3));
+		h_disp_obj(m_disp_image.at(4), m_disp_hd.at(4));
 	}
 	catch (Halcon::HException e)
 	{
@@ -1576,15 +1690,53 @@ void QtModelSet::_Show_Online_Effect2()
 
 void QtModelSet::_Button_Show_Online2()
 {
-	//bug
+
+	if (6 > global::GetIns()->camera_found)
+	{
+
+		//定义文件对话框类
+		QFileDialog *fileDialog = new QFileDialog(this);
+		//定义文件对话框标题
+		fileDialog->setWindowTitle(tr("打开图片"));
+		//设置默认文件路径
+		fileDialog->setDirectory(".");
+		//设置文件过滤器
+		fileDialog->setNameFilter(tr("Images(*.png *.jpg *.jpeg *.bmp)"));
+		//设置可以选择多个文件,默认为只能选择一个文件QFileDialog::ExistingFiles
+		fileDialog->setFileMode(QFileDialog::ExistingFiles);
+		//设置视图模式
+		fileDialog->setViewMode(QFileDialog::Detail);
+		//打印所有选择的文件的路径
+		QStringList fileNames;
+		if (fileDialog->exec())
+		{
+			fileNames = fileDialog->selectedFiles();
+			for (auto fileName : fileNames)
+			{
+				try {
+					Halcon::read_image(&m_disp_image.at(5), fileName.toLatin1().data());
+					h_disp_obj(m_disp_image.at(5), m_disp_hd.at(5));
+					break;
+				}
+				catch (Halcon::HException ex)
+				{
+
+				}
+			}
+		}
+
+		return;
+	}
+
+
 	//bug 3  OUT_CAM2 | OUT_CAM3 应该替换成OUT_CAM3
-	Machine::GetIns()->m_mc->Write_Output_Ex(0, OUT_CAM2 | OUT_CAM3, 1);
-	int disp = 2;
+	Machine::GetIns()->m_mc->Write_Output_Ex(0, OUT_CAM3, 1);
+	int disp = 5;
 	try {
 		Halcon::set_check("~give_error");
 		Sleep(1);
-		SnapHobj(m_disp_image.at(1), 0, 1, 10);
-		h_disp_obj(m_disp_image.at(1), m_disp_hd.at(disp));
+		SnapHobj(m_disp_image.at(5), 0, 5, 10);
+		h_disp_obj(m_disp_image.at(5), m_disp_hd.at(disp));
 	}
 	catch (Halcon::HException e)
 	{
@@ -1596,7 +1748,7 @@ void QtModelSet::_Button_Show_Online2()
 	{
 		std::cout << out.what() << std::endl;
 	}
-	Machine::GetIns()->m_mc->Write_Output_Ex(0, OUT_CAM2 | OUT_CAM3, 0);
+	Machine::GetIns()->m_mc->Write_Output_Ex(0, OUT_CAM3, 0);
 }
 
 void QtModelSet::_Button_Set_As_Model2()
@@ -1694,14 +1846,28 @@ void QtModelSet::_Button_Model_List()
 //初始化界面
 void QtModelSet::OnInitDialog()
 {
+
 	m_vec_scrollArea.push_back(scrollArea);
 	m_vec_scrollArea.push_back(scrollArea1);
 	m_vec_scrollArea.push_back(scrollArea2);
+	m_vec_scrollArea.push_back(scrollArea3);
+	m_vec_scrollArea.push_back(scrollArea4);
+	m_vec_scrollArea.push_back(scrollArea5);
+	Hlong w = m_vec_scrollArea[0]->width();
+	Hlong h = m_vec_scrollArea[0]->height();
+
 	Halcon::set_check("give_error");
 	for (size_t i = 0; i < m_vec_scrollArea.size(); i++){
 		HTuple disp_hand;
 		Halcon::set_check("~father");
-		Halcon::open_window(0,0,m_vec_scrollArea[0]->width(), m_vec_scrollArea[0]->height(),(Hlong)m_vec_scrollArea[i]->winId(),"visible","",&disp_hand);
+		Hlong _w = w;
+		Hlong _h = h;
+		if (i > 0 && i < 5)
+		{
+			_w = w / 2;
+			_h = h / 2;
+		}
+		Halcon::open_window(0,0,_w, _h,(Hlong)m_vec_scrollArea[i]->winId(),"visible","",&disp_hand);
 		m_disp_hd.push_back(disp_hand);
 
 	}	

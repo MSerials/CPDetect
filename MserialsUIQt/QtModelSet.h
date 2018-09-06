@@ -67,9 +67,12 @@ private:
 	//线路三的tab设置
 	QTabWidget	*tabWidget_Set_Line3;
 
-	QScrollArea *scrollArea;
-	QScrollArea *scrollArea1;
-	QScrollArea *scrollArea2;
+	QScrollArea *scrollArea = nullptr;
+	QScrollArea *scrollArea1 = nullptr;
+	QScrollArea *scrollArea2 = nullptr;
+	QScrollArea *scrollArea3 = nullptr;
+	QScrollArea *scrollArea4 = nullptr;
+	QScrollArea *scrollArea5 = nullptr;
 	///<线路1显示图片
 	QLabel	*label;
 	QPushButton *Button_Show_Model;

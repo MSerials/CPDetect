@@ -23,6 +23,7 @@ private slots:
 	void setFuntionFlow();
 	void btn_clicked_getxml();
 
+	void UpdateUI();
 	void _Button_Start_Detect();
 	void _Button_Param_Set();
 	void _Button_Model_Mgr();
@@ -92,7 +93,8 @@ private:
 	std::tuple<int, QLabel*> tuple_Labels;
 
 	//显示当前时间
-	QLCDNumber *lcd;// = new QLCDNumber();
+	//QLCDNumber *lcd;// = new QLCDNumber();
+	QLCDNumber *液晶时间显示 = nullptr;// = new QLCDNumber();
 
 	QPushButton *Button_Start_Detect;
 	QPushButton *Button_Param_Set;

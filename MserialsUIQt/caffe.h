@@ -29,17 +29,23 @@ class caffe_predict
 	#endif
 #endif
 
+
+
+
 private:
 	cv::dnn::Net net;
 	std::vector<cv::String> classNames;
 	cv::Size RESIZE_SIZE;
+	static const int image_w = 160;
+	static const int image_h = 160;
 public:
-	caffe_predict(char *model_txt, char *train_file, char* words = "synset_words.txt", cv::Size RESIZE = cv::Size(160,160)) { 
+	caffe_predict(char *model_txt, char *train_file, char* words = "synset_words.txt", cv::Size RESIZE = cv::Size(image_w, image_h)) {
 		cv_load_vgg_params(model_txt, train_file, words);
 		RESIZE_SIZE = RESIZE;
 	};
+
 	static cv::Size get_size() {
-		return cv::Size(35, 35);
+		return cv::Size(image_w, image_h);
 	}
 
 	std::vector<cv::String> cv_load_class_names(const char *filename)
@@ -104,7 +110,7 @@ public:
 	{
 		if (img.empty())
 		{
-			return std::pair<std::string, float>("no image", 0.0);
+			return std::pair<std::string, float>("no image", static_cast<float>(0.0));
 		}
 		using namespace cv;
 		using namespace cv::dnn;
@@ -120,7 +126,7 @@ public:
 		catch (cv::Exception e)
 		{
 			std::cout << e.what() << std::endl;
-			return std::pair<std::string, float>("Label_Net_Parameter_Error", 0.0);
+			return std::pair<std::string, float>("Label_Net_Parameter_Error", static_cast<float>(0.0));
 
 		}
 		int classId;
@@ -128,11 +134,11 @@ public:
 		getMaxClass(prob, &classId, &classProb);//find the best class
 		try
 		{
-			return std::pair<std::string, float>(classNames.at(classId), classProb);
+			return std::pair<std::string, float>(classNames.at(classId), static_cast<float>(classProb));
 		}
 		catch (std::out_of_range e)
 		{
-			return std::pair<std::string, float>("Label_file_Error", 0.0);
+			return std::pair<std::string, float>("Label_file_Error", static_cast<float>(0.0));
 		}
 	}
 

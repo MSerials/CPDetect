@@ -221,6 +221,7 @@
     <ClInclude Include="GeneratedFiles\ui_QtParamSet.h" />
     <ClInclude Include="GeneratedFiles\ui_QuitTipDlg.h" />
     <ClInclude Include="global.h" />
+    <ClInclude Include="HalconEx.h" />
     <ClInclude Include="Ini.h" />
     <ClInclude Include="Machine.h" />
     <ClInclude Include="MotionCard.h" />

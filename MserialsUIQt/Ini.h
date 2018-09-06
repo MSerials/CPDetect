@@ -69,6 +69,35 @@ struct _Param {
 	int dibuhuiduzhi = 35;
 
 
+
+
+
+
+
+	//第三个工位的参数
+
+	//色斑面积最小值
+	double cap_error_area_var = 20;
+	//获取色斑偏移下限值
+	double peak_lower = -55;
+	//获取色斑偏移上限值
+	double peak_upper = -18;
+
+
+	//area_select_scale = 20;
+	//中值滤波参数
+	double mean_filter_var = 5;
+	//多大是边缘不去检测
+	double erosion_di = 8;
+	//NG阈值下限，小于这个数的色斑不算NG
+	double NG_area_lower = 50;
+	//颜色深浅分类的阶梯大小
+	double color_sigma = 12;
+	//NG颜色最小值
+	double color_lower = 100;
+
+
+
 	//用于测量速度的两个感应器间距
 	double Sensor1_Sensor2_distance = 435;
 
@@ -176,6 +205,7 @@ public:
 		{
 			settings->beginGroup(STR_PRJ);
 
+			settings->setValue("MOTIONCARD",card_num);
 			settings->setValue("PRJ_NAME", para.Project_Name);
 
 			settings->endGroup();
@@ -247,6 +277,8 @@ public:
 
 		if (SEL & PARA_PRJ)
 		{
+			card_num = settings->value(str_prj + "MOTIONCARD", 0).toInt();
+
 			para.Project_Name = settings->value(str_prj + "PRJ_NAME", QString::fromLocal8Bit("默认")).toString();
 			//Color_Circle.c = settings->value(str_prj + "COLORCIR_C", 100).toDouble();
 			//Color_Circle.r = settings->value(str_prj + "COLORCIR_R", 100).toDouble();
@@ -266,6 +298,7 @@ public:
 
 		if (SEL & PARA_IO)
 		{
+
 			para.Sensor1_Sensor2_distance = settings->value(str_io + "S1S2_DIS", 440).toDouble();
 
 			//感应器1到相机1的距离mm
@@ -378,6 +411,8 @@ public:
 	h_Circle Color_Circle;//检测颜色的圆形ROI
 
 	_Param para,para_bak;
+
+	int card_num = 0;
 
 
 

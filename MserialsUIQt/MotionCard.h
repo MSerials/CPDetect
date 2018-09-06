@@ -37,7 +37,7 @@ public:
 			cardno++;
 			isInitOK = true;
 
-			int deviceNum = 1;
+			int deviceNum = CARD_NO;
 			DeviceInformation devInfo(deviceNum);
 
 			ErrorCode errorCode = m_instantDiCtrl->setSelectedDevice(devInfo);
@@ -76,7 +76,12 @@ public:
 			isInitOK = false;
 			return false;
 		}
-		if (0 == cardno) return false;
+		printf("%d io card found\n", cardno);
+		if (0 == cardno)
+		{
+			isInitOK = false;
+			return false;
+		}
 		else return true;
 	}
 private:

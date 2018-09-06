@@ -20,12 +20,6 @@ using namespace std;
 #define __IR__
 
 
-
-
-
-
-
-
 //参数管理
 class ParamMgr
 {

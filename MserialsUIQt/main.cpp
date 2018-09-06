@@ -1,13 +1,10 @@
  #include "stdafx.h"
 #include "MserialsUIQt.h"
 #include <QtWidgets/QApplication>
-//#include "QtFunctionListView.h"
 #include "qformlayout.h"
 #include "Ini.h"
 #include "Machine.h"
 #include "MSerialsCam.h"
-
-
 #include <iostream>
 #include <stack>
 //一个栈可能所有出栈的序列

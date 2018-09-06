@@ -380,11 +380,20 @@ void MserialsUIQt::initUI()
 	//Logo->resize(Logo->width(), Logo->height());
 
 	//加载日期
+#if 0
 	lcd = new QLCDNumber();
+	
 	lcd->setDigitCount(10);
 	lcd->setMode(QLCDNumber::Dec);
 	lcd->setSegmentStyle(QLCDNumber::Filled);
 	lcd->setStyleSheet("QLCDNumber{background:rgba(220,220,120);color:black}");
+#endif
+	液晶时间显示 = new QLCDNumber();
+	液晶时间显示->setDigitCount(10);
+	液晶时间显示->setMode(QLCDNumber::Dec);
+	液晶时间显示->setSegmentStyle(QLCDNumber::Filled);
+	液晶时间显示->setStyleSheet("QLCDNumber{background:rgba(220,220,120);color:black}");
+
 	static QTimer *timer = new QTimer();
 	//设置定时器每个多少毫秒发送一个timeout()信号   
 	timer->setInterval(1000);
@@ -393,7 +402,7 @@ void MserialsUIQt::initUI()
 
 	connect(timer, SIGNAL(timeout()), this, SLOT(_Timer_LCD()));
 	
-	GridLayout_Ctrl->addWidget(lcd, 0, 10, 2, 8);
+	GridLayout_Ctrl->addWidget(液晶时间显示, 0, 10, 2, 8);
 #ifdef _DEBUG
 	char buff[256] = { 0 };
 	sprintf(buff, "w:%d,h:%d", Logo->width(), Logo->height());
@@ -490,12 +499,42 @@ void MserialsUIQt::btn_clicked_getxml()
 	*/
 }
 
+
+
+void MserialsUIQt::UpdateUI() {
+	if (Machine::START == Machine::GetIns()->push_button(Machine::SYS_STATE))
+	{
+		Button_Start_Detect->setText(QString::fromLocal8Bit("停止检测"));
+	}
+	else
+	{
+		Button_Start_Detect->setText(QString::fromLocal8Bit("开始检测"));
+	}
+
+	if (Machine::GetIns()->SnapState())
+	{
+		Button_Refresh_Camera->setDisabled(false);
+		Button_Snap->setText(QString::fromLocal8Bit("获取图像中..."));
+	}
+	else
+	{
+		Button_Refresh_Camera->setDisabled(false);
+		Button_Snap->setText(QString::fromLocal8Bit("获取相机图像"));
+	}
+}
 //开始检测按钮
 void MserialsUIQt::_Button_Start_Detect()
 {
-	Machine::GetIns()->push_button(Machine::START);
+	if (Machine::START != Machine::GetIns()->push_button(Machine::SYS_STATE)) {
+		int state = Machine::GetIns()->push_button(Machine::START);
+	}
+	else
+	{
+		int state = Machine::GetIns()->push_button(Machine::STOP);		
+	}
+	UpdateUI();
 	return;
-#if 1
+
 	QString path = QFileDialog::getOpenFileName(this, tr("Open Image"), ".", tr("Image Files(*.bmp *.jpg *.jpeg *.png *.gif *.tiff)"));
 	if (path.length() == 0) return;
 
@@ -506,19 +545,59 @@ void MserialsUIQt::_Button_Start_Detect()
 	Halcon::read_image(&image, ba.data());
 	Machine::GetIns()->h_disp_obj(image, Machine::GetIns()->hdisp_hand[2]);
 
-#else
 
-	QString path = QFileDialog::getOpenFileName(this, tr("Open Image"), ".", tr("Image Files(*.bmp *.jpg *.jpeg *.png *.gif *.tiff)"));
-	if (path.length() == 0) return;
 
-	QByteArray ba = path.toLatin1();
-	cv::Mat imat,mat;
+}
+
+
+
+void MserialsUIQt::_Button_Snap()
+{
+	if (Machine::GetIns()->SnapState())
+	{
+		Machine::GetIns()->setNotSnap();
+	}
+	else
+	{
+		Machine::GetIns()->setSnap();
+	}
+	UpdateUI();
+	return;
+
 	
-	imat = cv::imread(ba.data(), -1);
-	cv::cvtColor(imat, mat, CV_BGR2RGB);
-	displayMat(mat, pLabelCamera1,pWidgetCamera1);
-	
-#endif	
+	if (Machine::STOP == Machine::GetIns()->push_button(Machine::SYS_STATE))
+	{
+		Machine::GetIns()->push_button(Machine::CAMERA_SNAP);
+	}
+	else if(Machine::START != Machine::GetIns()->push_button(Machine::SYS_STATE))
+	{
+		Machine::GetIns()->push_button(Machine::STOP);
+	}
+	UpdateUI();
+	return;
+	Button_Refresh_Camera->setDisabled(true);
+	int cam_index = 0;
+	for (int i = 0; i < vendors; i++)
+	{
+		int cn = get_cameras_num_by_vendor(i);
+		for (int j = 0; j < cn; j++)
+		{
+			Halcon::Hobject image;
+			SnapHobj(image, i, j, 10);
+			try {
+				Machine::GetIns()->h_disp_obj(image, Machine::GetIns()->hdisp_hand[cam_index]);
+				cam_index++;
+			}
+			catch (std::out_of_range &exc)
+			{
+				DLOG(LOG_INFO, exc.what());
+				return;
+			}
+		}
+	}
+	//CV_RGB2Lab
+	Button_Refresh_Camera->setDisabled(false);
+
 
 }
 
@@ -574,15 +653,25 @@ void MserialsUIQt::_Button_Refresh_Camera()
 	//disable 相关button
 //	Button_Counter_to_Zero->setStyleSheet("QPushButton{font-size:12px;padding:3px;background:rgba(30,30,180);color:black}");
 	Button_Snap->setDisabled(true);
+#if 0
+	int num = global::InitCamera();
+	char info[512] = { 0 };
+	sprintf(info, "camera num %d\n", num);
+	DLOG(LOG_INFO, info);
+#else
 	int cam_index = 0;
 	int num = enum_cameras();
+	global::GetIns()->camera_found = num;
 	vendors = get_vendors_num();
 	char info[512] = { 0 };
 	sprintf(info, "camera num %d vendors %d", num,vendors);
+	printf(info);
 	DLOG(LOG_INFO,info);
+#endif
 	
 #ifdef _DEBUG
 	
+
 		for (int i = 0; i < vendors; i++)
 		{
 			int cn = get_cameras_num_by_vendor(i);
@@ -611,35 +700,12 @@ void MserialsUIQt::_Button_Refresh_Camera()
 //	Button_Counter_to_Zero->setStyleSheet("QPushButton{font-size:12px;padding:3px;background:rgba(220,220,120);color:black}");
 }
 
-void MserialsUIQt::_Button_Snap()
-{
-
-	Button_Refresh_Camera->setDisabled(true);
-	int cam_index = 0;
-	for (int i = 0; i < vendors; i++)
-	{
-		int cn = get_cameras_num_by_vendor(i);
-		for (int j = 0; j < cn; j++)
-		{
-			Halcon::Hobject image;
-			SnapHobj(image, i, j,10);
-			try {
-				Machine::GetIns()->h_disp_obj(image, Machine::GetIns()->hdisp_hand[cam_index]);
-				cam_index++;
-			}
-			catch (std::out_of_range &exc)
-			{
-				DLOG(LOG_INFO, exc.what());
-				return;
-			}
-		}
-	}
-
-	//CV_RGB2Lab
-	Button_Refresh_Camera->setDisabled(false);
 
 
-}
+
+
+
+
 //类似于mfc oninitdilog 在界面出现的时候再进行初始化，因为界面还没显示时候不知道窗口的具体大小
 void MserialsUIQt::OnInitDiaog()
 {
@@ -655,6 +721,9 @@ void MserialsUIQt::OnInitDiaog()
 		}
 	}
 	Machine::GetIns()->h_open_window(m_vec_widget);
+
+	Machine::GetIns()->push_button(Machine::START);
+	UpdateUI();
 }
 //override
 void MserialsUIQt::closeEvent(QCloseEvent *ev)
@@ -682,7 +751,7 @@ void MserialsUIQt::_Timer_LCD()
 	//获取系统当前时间   
 	QTime time = QTime::currentTime();
 	//设置晶体管控件QLCDNumber上显示的内容   
-	lcd->display(time.toString("hh:mm:ss"));
+	液晶时间显示->display(time.toString("hh:mm:ss"));
 }
 
 void MserialsUIQt::XmlParse()

@@ -1,18 +1,18 @@
 ﻿#pragma once
 
-
-//
 #include "Common.h"
 #include "opencv.hpp"
 #include <mutex>
 #include <iostream>
-#include "MSerialsCam.h"
+//#include "MSerialsCam.h"
 #include <list>
 //多线程保护
 #include <atomic>
 #include "Ini.h"
 #include "global.h"
 #include "caffe.h"
+#include "HalconEx.h"
+#include "../../../MSerialsCore/Tools/Tools.h"
 ///<#include <stdatomic.h> 
 ///<内联
 ///<机器的算法类和控制类都在这里面
@@ -23,11 +23,6 @@
 
 #include "Halconcpp.h"
 
-#ifdef _WIN64
-#pragma comment(lib,"../third_party/lib/halcon/x64/halconcpp.lib")
-#else
-#pragma comment(lib,"../third_party/lib/halcon/x86/halconcpp.lib")
-#endif
 
 using namespace Halcon;
 
@@ -38,10 +33,162 @@ using namespace Halcon;
 class Machine
 {
 public:
-	enum { BUTTON_VOID = 0, STOP = 1, PAUSE = 2, START = 4,ESTOP, SYS_STATE };
+	enum { BUTTON_VOID = 0, STOP = 1, PAUSE = 2, START = 4,CAMERA_SNAP,ESTOP, SYS_STATE };
 	enum { NO_RECT = 0, CRICLE };
 	//瓶盖一共就6种分类，OK，NG，和四档颜色
-	enum{UNKOWN_CAP = -1,OK = 0,NG = 1,COLOR1 =2,COLOR2 =3,COLOR3 =4,COLOR4 =5,COLOR_NG};
+	enum{UNKOWN_CAP = 0, NG = 1 ,OK  = 2,COLOR1  =4,COLOR2  =8 ,COLOR3 = 16,COLOR4 = 32,COLOR_NG = 64};
+
+#define COLOR_GET 4
+
+
+
+
+
+
+
+	// Default exception handler 
+	static void CPPExpDefaultExceptionHandler(const Halcon::HException& except)
+	{
+		throw except;
+	}
+
+	void disp_message(Halcon::HTuple WindowHandle, Halcon::HTuple String, Halcon::HTuple CoordSystem,
+		Halcon::HTuple Row, Halcon::HTuple Column, Halcon::HTuple Color, Halcon::HTuple Box)
+	{
+		using namespace Halcon;
+
+		// Local control variables 
+		HTuple  Red, Green, Blue, Row1Part, Column1Part;
+		HTuple  Row2Part, Column2Part, RowWin, ColumnWin, WidthWin;
+		HTuple  HeightWin, MaxAscent, MaxDescent, MaxWidth, MaxHeight;
+		HTuple  R1, C1, FactorRow, FactorColumn, Width, Index, Ascent;
+		HTuple  Descent, W, H, FrameHeight, FrameWidth, R2, C2;
+		HTuple  DrawMode, Exception, CurrentColor;
+
+
+		// Install default exception handler 
+		HException::InstallHHandler(&CPPExpDefaultExceptionHandler);
+
+		//This procedure displays text in a graphics window.
+		//
+		//Input parameters:
+		//WindowHandle: The WindowHandle of the graphics window, where
+		//   the message should be displayed
+		//String: A tuple of strings containing the text message to be displayed
+		//CoordSystem: If set to 'window', the text position is given
+		//   with respect to the window coordinate system.
+		//   If set to 'image', image coordinates are used.
+		//   (This may be useful in zoomed images.)
+		//Row: The row coordinate of the desired text position
+		//   If set to -1, a default value of 12 is used.
+		//Column: The column coordinate of the desired text position
+		//   If set to -1, a default value of 12 is used.
+		//Color: defines the color of the text as string.
+		//   If set to [], '' or 'auto' the currently set color is used.
+		//   If a tuple of strings is passed, the colors are used cyclically
+		//   for each new textline.
+		//Box: If set to 'true', the text is written within a white box.
+		//
+		//prepare window
+		get_rgb(WindowHandle, &Red, &Green, &Blue);
+		get_part(WindowHandle, &Row1Part, &Column1Part, &Row2Part, &Column2Part);
+		get_window_extents(WindowHandle, &RowWin, &ColumnWin, &WidthWin, &HeightWin);
+		set_part(WindowHandle, 0, 0, HeightWin - 1, WidthWin - 1);
+		//
+		//default settings
+		if (0 != (Row == -1))
+		{
+			Row = 12;
+		}
+		if (0 != (Column == -1))
+		{
+			Column = 12;
+		}
+		if (0 != (Color == HTuple()))
+		{
+			Color = "";
+		}
+		//
+		String = (("" + String) + "").Split("\n");
+		//
+		//Estimate extentions of text depending on font size.
+		get_font_extents(WindowHandle, &MaxAscent, &MaxDescent, &MaxWidth, &MaxHeight);
+		if (0 != (CoordSystem == HTuple("window")))
+		{
+			R1 = Row;
+			C1 = Column;
+		}
+		else
+		{
+			//transform image to window coordinates
+			FactorRow = (1.0*HeightWin) / ((Row2Part - Row1Part) + 1);
+			FactorColumn = (1.0*WidthWin) / ((Column2Part - Column1Part) + 1);
+			R1 = ((Row - Row1Part) + 0.5)*FactorRow;
+			C1 = ((Column - Column1Part) + 0.5)*FactorColumn;
+		}
+		//
+		//display text box depending on text size
+		if (0 != (Box == HTuple("true")))
+		{
+			//calculate box extents
+			String = (" " + String) + " ";
+			Width = HTuple();
+			for (Index = 0; Index <= (String.Num()) - 1; Index += 1)
+			{
+				get_string_extents(WindowHandle, HTuple(String[Index]), &Ascent, &Descent,
+					&W, &H);
+				Width.Append(W);
+			}
+			FrameHeight = MaxHeight*(String.Num());
+			FrameWidth = (HTuple(0).Concat(Width)).Max();
+			R2 = R1 + FrameHeight;
+			C2 = C1 + FrameWidth;
+			//display rectangles
+			get_draw(WindowHandle, &DrawMode);
+			set_draw(WindowHandle, "fill");
+			set_color(WindowHandle, "light gray");
+			disp_rectangle1(WindowHandle, R1 + 3, C1 + 3, R2 + 3, C2 + 3);
+			set_color(WindowHandle, "white");
+			disp_rectangle1(WindowHandle, R1, C1, R2, C2);
+			set_draw(WindowHandle, DrawMode);
+		}
+		else if (0 != (Box != HTuple("false")))
+		{
+			Exception = "Wrong value of control parameter Box";
+			throw HException(Exception);
+		}
+		//Write text.
+		for (Index = 0; Index <= (String.Num()) - 1; Index += 1)
+		{
+			CurrentColor = Color[Index % (Color.Num())];
+			if (0 != (HTuple(CurrentColor != HTuple("")).And(CurrentColor != HTuple("auto"))))
+			{
+				set_color(WindowHandle, CurrentColor);
+			}
+			else
+			{
+				set_rgb(WindowHandle, Red, Green, Blue);
+			}
+			Row = R1 + (MaxHeight*Index);
+			set_tposition(WindowHandle, Row, C1);
+			write_string(WindowHandle, HTuple(String[Index]));
+		}
+		//reset changed window settings
+		set_rgb(WindowHandle, Red, Green, Blue);
+		set_part(WindowHandle, Row1Part, Column1Part, Row2Part, Column2Part);
+		return;
+	}
+
+
+
+
+
+
+
+
+
+
+
 
 	motion_card *m_mc = nullptr;
 	//三个相机的触发硬件控制
@@ -87,8 +234,21 @@ private:
 		Camera3DelayBlow.clear();
 		m_mc = new motion_card();
 		if (!m_mc->InitOk()) { delete m_mc; m_mc = nullptr; }
-		enum_cameras(TRIGGER_HARDWARE);
-		//load caffe
+#if 0
+		int num = global::InitCamera();
+		char info[512] = { 0 };
+		sprintf(info, "init camera num %d\n", num);
+		DLOG(LOG_INFO, info);
+		printf(info);
+#else
+		int num = enum_cameras(TRIGGER_HARDWARE);
+		global::GetIns()->camera_found = num;
+		char info[512] = { 0 };
+		sprintf(info, " %d camers found", num);
+		DLOG(LOG_INFO,info);
+		printf(info);
+		//
+#endif
 
 		Caffe = new caffe_predict("DL/cap.prototxt","DL/cap.caffemodel","DL/words.txt",cv::Size(160,160));
 	}
@@ -174,9 +334,9 @@ public:
 			::WaitForSingleObject(pDlg->_thread_blow1, INFINITE);
 			ResetEvent(pDlg->_thread_blow1);
 			//第一个口
-			pDlg->m_mc->Write_Output_Ex(1, 1, 1);
+			//pDlg->m_mc->Write_Output_Ex(1, 1, 1);
 			Sleep(55);
-			pDlg->m_mc->Write_Output_Ex(1, 1, 0);
+			//pDlg->m_mc->Write_Output_Ex(1, 1, 0);
 		}
 	}
 
@@ -188,9 +348,9 @@ public:
 		{
 			::WaitForSingleObject(pDlg->_thread_blow2,INFINITE);
 			ResetEvent(pDlg->_thread_blow2);
-			pDlg->m_mc->Write_Output_Ex(1, 4, 1);
+			//pDlg->m_mc->Write_Output_Ex(1, 4, 1);
 			Sleep(55);
-			pDlg->m_mc->Write_Output_Ex(1, 4, 0);
+			//pDlg->m_mc->Write_Output_Ex(1, 4, 0);
 		}
 	}
 
@@ -267,8 +427,6 @@ public:
 		clock_t o = Tick;
 		for (;;) {
 			::WaitForSingleObject(pDlg->_thread_io, INFINITE);
-			//Sleep(1);
-			//8个IO为一个组
 			Sleep(1);
 			new_state = pDlg->m_mc->Read_Input(0); 
 			Tick = clock();
@@ -282,15 +440,16 @@ public:
 			int NCT3 = Camera_Trigger3 & new_state;
 			int OCT3 = Camera_Trigger3 & old_state;
 
-			if (NCT1 && NCT1 != OCT1) {
-				pDlg->Camera1Delay.push_back(std::pair<clock_t,int>(Tick,Machine::UNKOWN_CAP));
-			}
-			if (NCT2 && NCT2 != OCT2) {
-				pDlg->Camera2Delay.push_back(std::pair<clock_t, int>(Tick, Machine::UNKOWN_CAP));
-			}
-			if (NCT3 && NCT3 != OCT3) {
-				pDlg->Camera3Delay.push_back(std::pair<clock_t, int>(Tick, Machine::UNKOWN_CAP));
-			}
+				if (NCT1 && NCT1 != OCT1) {
+					pDlg->Camera1Delay.push_back(std::pair<clock_t, int>(Tick, Machine::UNKOWN_CAP));
+				}
+				if (NCT2 && NCT2 != OCT2) {
+					pDlg->Camera2Delay.push_back(std::pair<clock_t, int>(Tick, Machine::UNKOWN_CAP));
+				}
+				if (NCT3 && NCT3 != OCT3) {
+					pDlg->Camera3Delay.push_back(std::pair<clock_t, int>(Tick, Machine::UNKOWN_CAP));
+				}
+			
 			old_state = new_state;
 
 			//严格的，如果这个地方超出了界限，会崩溃
@@ -300,32 +459,35 @@ public:
 				{
 					//注意顺序，防止bug，要进行多线程保护
 					pDlg->Cam1Tick = static_cast<clock_t>(pDlg->Camera1Delay.begin()->first);
-					pDlg->Camera1Delay.pop_front();
 					SetEvent(pDlg->_thread_line1);
-
+					printf("try to trigger camera1\n");
+					pDlg->Camera1Delay.pop_front();
 				}
 
 				//触发相机2
 				if (pDlg->Camera2Delay.size() > 0 && (Tick-pDlg->Camera2Delay.begin()->first) > CAM2DELAY)
 				{
 					pDlg->Cam2Tick = static_cast<clock_t>(pDlg->Camera2Delay.begin()->first);
-					pDlg->Camera2Delay.pop_front();
+					//
 					SetEvent(pDlg->_thread_line2);
+					pDlg->Camera2Delay.pop_front();
 				}
 
 				//触发相机3
 				if (pDlg->Camera3Delay.size() > 0 && (Tick-pDlg->Camera3Delay.begin()->first) > CAM3DELAY)
 				{
 					pDlg->Cam3Tick = static_cast<clock_t>(pDlg->Camera3Delay.begin()->first);
-					pDlg->Camera3Delay.pop_front();
+					//
 					SetEvent(pDlg->_thread_line3);
+					pDlg->Camera3Delay.pop_front();
 				}
 
-				
 				//该变量是查找是否控制变量有问题，并做出报警
 				int Unkown_cap_volume = 0;
 				//工位1的吹气控制变量
-				for (std::list<std::pair<clock_t, int>>::iterator it = pDlg->Camera1DelayBlow.begin(); it != pDlg->Camera1DelayBlow.end(); it++) {
+#if 1
+				for (std::list<std::pair<clock_t, int>>::iterator it = pDlg->Camera1DelayBlow.begin(); it != pDlg->Camera1DelayBlow.end(); ) {
+					bool isDel = false;
 					switch (it->second) {
 						//没有任何检查的结果，什么事也不干
 					case Machine::UNKOWN_CAP:
@@ -338,21 +500,28 @@ public:
 							//阻塞的函数
 							//工位1吹气
 							SetEvent(pDlg->_thread_blow1);
-							//std::lock_guard<std::mutex>  lck(pDlg->mtx_line1);
-							pDlg->Camera1DelayBlow.erase(it);
+							isDel = true;
 						}
 					break;
-						//OK的就删除掉吧，也没什么用了,不过多线程删除得保证安全
-					case Machine::OK: {
-						//std::lock_guard<std::mutex>  lck(pDlg->mtx_line1); 
-						pDlg->Camera1DelayBlow.erase(it); 
-					} 
-					break;
+					case Machine::OK:	isDel = true;	break;
+					default:			isDel = true;	break;
 					}
 
+					if (isDel)
+					{
+						std::lock_guard<std::mutex>  lck(pDlg->mtx_line1);
+						pDlg->Camera1DelayBlow.erase(it++);
+					}
+					else
+					{
+						++it;
+					}
 				}
+#endif
+#if 1
 				//工位2的吹气控制变量
-				for (std::list<std::pair<clock_t, int>>::iterator it = pDlg->Camera2DelayBlow.begin(); it != pDlg->Camera2DelayBlow.end(); it++) {
+				for (std::list<std::pair<clock_t, int>>::iterator it = pDlg->Camera2DelayBlow.begin(); it != pDlg->Camera2DelayBlow.end();) {
+					bool isDel = false;
 					switch (it->second) {
 						//没有任何检查的结果，什么事也不干
 					case Machine::UNKOWN_CAP:
@@ -365,21 +534,31 @@ public:
 							//函数是被阻塞的，所以不可取
 							//工位2吹气
 							SetEvent(pDlg->_thread_blow2);
-							//std::lock_guard<std::mutex>  lck(pDlg->mtx_line2);
-							pDlg->Camera2DelayBlow.erase(it);
+							isDel = true;
 						}
 						break;
 						//OK的就删除掉吧，也没什么用了,不过多线程删除得保证安全
-					case Machine::OK: {
-						//std::lock_guard<std::mutex>  lck(pDlg->mtx_line2);
-						pDlg->Camera2DelayBlow.erase(it);
-					}
-					break;
+					case Machine::OK:	isDel = true;	break;
+					default:			isDel = true;	break;
 					}
 
+					if (isDel)
+					{
+						std::lock_guard<std::mutex>  lck(pDlg->mtx_line2);
+						pDlg->Camera2DelayBlow.erase(it++);
+					}
+					else
+					{
+						++it;
+					}
 				}
+
+#endif
+
+#if 1
 				//工位3的吹气控制变量
-				for (std::list<std::pair<clock_t, int>>::iterator it = pDlg->Camera3DelayBlow.begin(); it != pDlg->Camera3DelayBlow.end(); it++) {
+				for (std::list<std::pair<clock_t, int>>::iterator it = pDlg->Camera3DelayBlow.begin(); it != pDlg->Camera3DelayBlow.end();) {
+					bool isDel = false;
 					switch (it->second) {
 						//没有任何检查的结果，什么事也不干
 					case Machine::UNKOWN_CAP:
@@ -392,9 +571,14 @@ public:
 							//函数是被阻塞的，所以不可取
 							//工位2吹气
 							SetEvent(pDlg->_thread_blow3);
-							//std::lock_guard<std::mutex>  lck(pDlg->mtx_line2);
-							pDlg->Camera3DelayBlow.erase(it);
+							isDel = true;
+			
 						}
+						break;
+						//OK的就删除掉吧，也没什么用了,不过多线程删除得保证安全
+					case Machine::OK: {
+						isDel = true;
+					}
 						break;
 					case Machine::COLOR1:
 						if ((Tick - it->first) > POS3BLOW_COLOR1_DELAY)
@@ -402,8 +586,7 @@ public:
 							//函数是被阻塞的，所以不可取
 							//工位2吹气
 							SetEvent(pDlg->_thread_blow3c1);
-							//std::lock_guard<std::mutex>  lck(pDlg->mtx_line2);
-							pDlg->Camera3DelayBlow.erase(it);
+							isDel = true;
 						}
 						break;
 					case Machine::COLOR2:
@@ -412,40 +595,45 @@ public:
 							//函数是被阻塞的，所以不可取
 							//工位2吹气
 							SetEvent(pDlg->_thread_blow3c2);
-							//std::lock_guard<std::mutex>  lck(pDlg->mtx_line2);
-							pDlg->Camera3DelayBlow.erase(it);
+							isDel = true;
 						}
 						break;
 					case Machine::COLOR3:
 						if ((Tick - it->first) > POS3BLOW_COLOR3_DELAY)
-						{
+						{ 
 							//函数是被阻塞的，所以不可取
 							//工位2吹气
 							SetEvent(pDlg->_thread_blow3c3);
-							//std::lock_guard<std::mutex>  lck(pDlg->mtx_line2);
-							pDlg->Camera3DelayBlow.erase(it);
+							isDel = true;
 						}
 						break;
 						//COLOR4就留在最后一个工位，也不需要吹气了
 					case Machine::COLOR4:
-						pDlg->Camera3DelayBlow.erase(it);
+						isDel = true;
 						break;
-						//OK的就删除掉吧，也没什么用了,不过多线程删除得保证安全
-					case Machine::OK: {
-						//std::lock_guard<std::mutex>  lck(pDlg->mtx_line2);
-						pDlg->Camera3DelayBlow.erase(it);
-					}
+
+					default:
+						printf("信号异常\n");
+						isDel = true;
 						break;
 					}
-
-
-
+					if (isDel)
+					{
+						std::lock_guard<std::mutex>  lck(pDlg->mtx_line3);
+						pDlg->Camera3DelayBlow.erase(it++);
+					}
+					else
+					{
+						++it;
+					}
 
 				}
 				//假设不可能超过6个瓶盖不检测，否则就报警
 				if (Unkown_cap_volume > 6) {
-
+					//报警
+					pDlg->push_button(Machine::STOP);
 				};
+#endif
 			}
 
 
@@ -468,15 +656,33 @@ public:
 		Halcon::Hobject image;
 		for (;;) {
 			::WaitForSingleObject(pDlg->_thread_line1, INFINITE);
-			//延时拍照
-			ResetEvent(pDlg->_thread_line1);
 			//硬件触发相机
 			pDlg->m_mc->Write_Output_Ex(0, OUT_CAM1, 1);
+			//延时拍照
+			ResetEvent(pDlg->_thread_line1);
 			try {
 				Halcon::set_check("~give_error");
-				Sleep(1);
-				SnapHobj(image, 0, 0, 10);
-				//pDlg->h_disp_obj(image, pDlg->hdisp_hand.at(0));
+				Sleep(SNAP_DELAY);
+				SnapHobj(image, 0, 0, 0);
+				pDlg->h_disp_obj(image, pDlg->hdisp_hand.at(0));
+
+				if (pDlg->SnapState())
+				{
+					QString image_path = Preference::GetIns()->sys->para.Project_Name + "/line1";
+					MSerials::Tools::h_write_image(image, image_path.toLocal8Bit().data(),"A");
+				}
+				else
+				{
+					//进行检测
+					int res = pDlg->back_cap_detect(image, pDlg->hdisp_hand.at(0+6), Preference::GetIns()->prj->para);
+					if (NG == (NG&res))
+					{
+						std::lock_guard<std::mutex>  lck(pDlg->mtx_line1);
+						pDlg->Camera1DelayBlow.push_back(std::pair<clock_t, int>(pDlg->Cam1Tick, res));
+					}
+
+				}
+
 			}
 			catch (Halcon::HException e)
 			{
@@ -488,15 +694,6 @@ public:
 				continue;
 			}
 			pDlg->m_mc->Write_Output_Ex(0, OUT_CAM1, 0);
-
-			//进行检测
-			int res = pDlg->back_cap_detect(image, pDlg->hdisp_hand.at(0), Preference::GetIns()->prj->para);
-			{
-				//std::lock_guard<std::mutex>  lck(pDlg->mtx_line1);
-				pDlg->Camera1DelayBlow.push_back(std::pair<DWORD, int>(pDlg->Cam1Tick, res));
-			}
-
-
 		}
 		return 0;
 
@@ -508,7 +705,7 @@ public:
 			std::cout << " Line2 End Cz No Card " << std::endl;
 			return 0;
 		}
-		Halcon::Hobject image;
+		Halcon::Hobject image[4];
 		for (;;) {
 			::WaitForSingleObject(pDlg->_thread_line2, INFINITE);
 			pDlg->m_mc->Write_Output_Ex(0, OUT_CAM2, 1);
@@ -516,9 +713,40 @@ public:
 			//延时拍照
 			try {
 				Halcon::set_check("~give_error");
-				Sleep(1);
-				SnapHobj(image, 0, 1, 10);
-				pDlg->h_disp_obj(image, pDlg->hdisp_hand.at(1));
+				Sleep(SNAP_DELAY);
+				SnapHobj(image[0], 0, 1, 0);
+				SnapHobj(image[1], 0, 2, 0);
+				SnapHobj(image[2], 0, 3, 0);
+				SnapHobj(image[3], 0, 4, 0);
+				pDlg->h_disp_obj(image[0], pDlg->hdisp_hand.at(1));
+				pDlg->h_disp_obj(image[1], pDlg->hdisp_hand.at(2));
+				pDlg->h_disp_obj(image[2], pDlg->hdisp_hand.at(3));
+				pDlg->h_disp_obj(image[3], pDlg->hdisp_hand.at(4));
+
+				if (pDlg->SnapState())
+				{
+					QString image_path = Preference::GetIns()->sys->para.Project_Name + "/line2cam2";
+					MSerials::Tools::h_write_image(image[0], image_path.toLocal8Bit().data(),"B");
+					MSerials::Tools::h_write_image(image[1], image_path.toLocal8Bit().data(),"C");
+					MSerials::Tools::h_write_image(image[2], image_path.toLocal8Bit().data(),"D");
+					MSerials::Tools::h_write_image(image[3], image_path.toLocal8Bit().data(),"E");
+				}
+				else
+				{
+					//进行检测
+					int res = pDlg->side_cap_detect(image[0], pDlg->hdisp_hand.at(1+6));
+					res |= pDlg->side_cap_detect(image[1], pDlg->hdisp_hand.at(2 + 6));
+					res |= pDlg->side_cap_detect(image[2], pDlg->hdisp_hand.at(3 + 6));
+					res |= pDlg->side_cap_detect(image[3], pDlg->hdisp_hand.at(4 + 6));
+					{
+						if (NG == (NG&res))
+						{
+							std::lock_guard<std::mutex>  lck(pDlg->mtx_line2);
+							pDlg->Camera2DelayBlow.push_back(std::pair<clock_t, int>(pDlg->Cam2Tick, NG));
+						}
+					}
+				}
+
 			}
 			catch (Halcon::HException e)
 			{
@@ -530,19 +758,9 @@ public:
 			}
 			
 			//硬件触发相机
-
 			pDlg->m_mc->Write_Output_Ex(0, OUT_CAM2, 0);
-
-			//进行检测
-			int res = pDlg->side_cap_detect(image, pDlg->hdisp_hand.at(1));
-			{
-				//std::lock_guard<std::mutex>  lck(pDlg->mtx_line2);
-				pDlg->Camera2DelayBlow.push_back(std::pair<clock_t, int>(pDlg->Cam2Tick, res));
-			}
-
 		}
 		return 0;
-		//Edit
 	}
 
 	static DWORD WINAPI Line3_Camera(LPVOID lpParameter) {
@@ -558,19 +776,47 @@ public:
 			::WaitForSingleObject(pDlg->_thread_line3, INFINITE);
 			//硬件触发相机
 			//but   
-			pDlg->m_mc->Write_Output_Ex(0, OUT_CAM2 | OUT_CAM3, 1);
+			pDlg->m_mc->Write_Output_Ex(0, OUT_CAM3, 1);
 			//延时拍照
 			ResetEvent(pDlg->_thread_line3);
 			//延时拍照
 			try {
 				Halcon::set_check("~give_error");
 				//反应太快造成触发无效，所以等待1ms
-				Sleep(1);
-				SnapMat(mat, 0, camera_index, 1);
-				if (mat.empty()) throw image;
-				MatToHImage(mat, image);
+				Sleep(SNAP_DELAY);			           
+				SnapHobj(image, 0, 5, 0);
 				pDlg->h_disp_obj(image, pDlg->hdisp_hand.at(5));
-
+				if (pDlg->SnapState())
+				{
+					QString image_path = Preference::GetIns()->sys->para.Project_Name + "/line3";
+					MSerials::Tools::h_write_image(image, image_path.toLocal8Bit().data(),"F");
+				}
+				else
+				{
+					//进行检测
+					int res = pDlg->front_cap_detect(image, pDlg->hdisp_hand.at(5 + 6), _Param());
+					{
+						if (NG == (res&NG))
+						{
+							res = NG;
+						}
+						else
+						{
+							int color = res >> COLOR_GET;
+							switch (color) {
+							case 0:res = COLOR1; break;
+							case 1:res = COLOR2; break;
+							case 2:res = COLOR3; break;
+							case 3:res = COLOR4; break;
+							default:
+								res = COLOR4;
+								break;
+							}
+						}
+						std::lock_guard<std::mutex>  lck(pDlg->mtx_line3);
+						pDlg->Camera3DelayBlow.push_back(std::pair<clock_t, int>(pDlg->Cam3Tick, res));
+					}
+				}
 			}
 			catch (Halcon::HException e)
 			{
@@ -580,19 +826,14 @@ public:
 			{
 				std::cout << out.what() << std::endl;
 			}
-
-			//硬件触发相机
-
-			pDlg->m_mc->Write_Output_Ex(0, OUT_CAM2 | OUT_CAM3, 0);
-
-			//进行检测
-			int res = pDlg->front_cap_detect(image, pDlg->hdisp_hand.at(5),_Param(),mat);
+			catch (cv::Exception e)
 			{
-				//std::lock_guard<std::mutex>  lck(pDlg->mtx_line2);
-				pDlg->Camera3DelayBlow.push_back(std::pair<clock_t, int>(pDlg->Cam3Tick, res));
+				std::cout << "failed to capture" << std::endl;
+				pDlg->push_button(ESTOP);
 			}
 
-
+			//硬件触发相机
+			pDlg->m_mc->Write_Output_Ex(0, OUT_CAM3, 0);
 		}
 		return 0;
 
@@ -609,7 +850,7 @@ public:
 		Hobject  Saturation, Intensity, inner, innerFillUp, ConnectedRegions;
 		Hobject  MaxArea, Saturated, cap_contour, ContoursSplit;
 		Hobject  SortedContours, ObjectSelected;
-
+		long long c1, r1, c2, r2;
 		//检测外凸
 		//smallest_circle(Regions, Row, Column, Radius)
 
@@ -627,7 +868,7 @@ public:
 			threshold(Saturation, &inner, p.threshold_back_cap, 255);
 			fill_up(inner, &innerFillUp);
 			connection(innerFillUp, &ConnectedRegions);
-			select_shape_std(ConnectedRegions, &MaxArea, "max_area", 0);
+			select_shape_std(ConnectedRegions, &MaxArea, "max_area", 600);
 			get_region_contour(MaxArea, &Rows, &Columns);
 
 			circularity(MaxArea, &Circularity);
@@ -648,8 +889,10 @@ public:
 		}
 		catch (Halcon::HException e)
 		{
+			HTuple ExceptionInfo;
+			e.ToHTuple(&ExceptionInfo);
 			set_tposition(Disp_Hd, 10, 10);
-			write_string(Disp_Hd, "分割错误");
+			write_string(Disp_Hd, "分割错误:" + ExceptionInfo);
 			return NG;
 		}
 		return res;
@@ -657,7 +900,21 @@ public:
 
 	//侧面检查函数
 	int side_cap_detect(const Halcon::Hobject &src, Halcon::HTuple &Disp_Hd, _Param p = _Param()) {
+		int res = OK;
+		try
+		{
+			Halcon::set_check("~give_error");
+			h_disp_obj(src, Disp_Hd);
 
+
+		}
+		catch (Halcon::HException e)
+		{
+			Halcon::HTuple ExceptionInformation;
+			e.ToHTuple(&ExceptionInformation);
+			set_tposition(Disp_Hd, 10, 10);
+			write_string(Disp_Hd, "分割错误:" + ExceptionInformation);
+		}
 		return NG;
 	}
 
@@ -666,10 +923,144 @@ public:
 
 
 	//正面检测函数,用于分选颜色
-	int front_cap_detect(const Halcon::Hobject &src, Halcon::HTuple &Disp_Hd, _Param p = _Param(),cv::Mat mat = cv::Mat()) {
-		using namespace Halcon;
+	int front_cap_detect(const Halcon::Hobject &Image, Halcon::HTuple &WindowHandle, _Param p = _Param(),cv::Mat mat = cv::Mat()) {
+#if 1
+	
+		int TextGap = 45;
 
-		int error_information = 0;
+		// Local iconic variables 
+		Hobject  red, green, blue, H, S, V, ImageMedian;
+		Hobject  Regions, ConnectedRegions, SelectedRegion, FilledRegion;
+		Hobject  ImageReduced, Image_Meaned, H_Seg, S_Seg, V_Seg;
+		Hobject  ErrorRegion_Delete, ErrorRegion, ErrorRegions, Region;
+		Hobject  Selected;
+
+
+		// Local control variables 
+		HTuple  scale, threshold_var, cap_error_area_var;
+		HTuple  cap_select_area_var, peak_lower, peak_upper, area_select_scale;
+		HTuple  mean_filter_var, erosion_di, NG_area_lower, color_sigma;
+		HTuple  color_lower, Circle_radius, Circle_Width, ImageFiles;
+		HTuple  Index, Width, Height, WindowHandleorg;
+		HTuple  Area, Row, Col, isOK, AbsoluteHistoH, RelativeHisto;
+		HTuple  AbsoluteHistoV, PeakGrayV, AbsoluteHistoS, RelativeHistoS;
+		HTuple  PeakGrayS, NumObj, Color_Class, MinThresh, MaxThresh;
+		HTuple  i, R, C, exception, string_back;
+
+		HException::InstallHHandler(&CPPExpDefaultExceptionHandler);
+		threshold_var = 135;
+		cap_error_area_var = 20;
+		cap_select_area_var = 8000;
+
+		peak_lower = -55;
+		peak_upper = -18;
+
+		area_select_scale = 20;
+		mean_filter_var = 5;
+		erosion_di = 8;
+
+
+		NG_area_lower = 50;
+		color_sigma = 12;
+		color_lower = 100;
+
+
+		try {
+			get_image_size(Image, &Width, &Height);
+			decompose3(Image, &red, &green, &blue);
+			trans_from_rgb(red, green, blue, &H, &S, &V, "hsv");
+			median_image(S, &ImageMedian, "circle", 5, "mirrored");
+			Halcon::threshold(ImageMedian, &Regions, threshold_var, 255);
+			Halcon::connection(Regions, &ConnectedRegions);
+			select_shape(ConnectedRegions, &SelectedRegion, "area", "and", cap_select_area_var,
+				90000);
+			select_shape(SelectedRegion, &SelectedRegion, "circularity", "and", 0.5, 1);
+			select_shape_std(SelectedRegion, &SelectedRegion, "max_area", 0.6);
+			fill_up(SelectedRegion, &FilledRegion);
+			erosion_circle(FilledRegion, &FilledRegion, erosion_di);
+			area_center(FilledRegion, &Area, &Row, &Col);
+			//�Ż���ֻ���һ��ͨ���Ϳ�����
+			reduce_domain(Image, FilledRegion, &ImageReduced);
+			median_image(ImageReduced, &Image_Meaned, "circle", mean_filter_var, "mirrored");
+			decompose3(Image_Meaned, &red, &green, &blue);
+			trans_from_rgb(red, green, blue, &H_Seg, &S_Seg, &V_Seg, "hsv");
+			isOK = 1;
+			try
+			{
+				gray_histo(FilledRegion, S_Seg, &AbsoluteHistoS, &RelativeHistoS);
+				PeakGrayS = (AbsoluteHistoS.SortIndex())[255];
+				Halcon::threshold(S_Seg, &ErrorRegion, PeakGrayS + peak_lower, PeakGrayS + peak_upper);
+				Halcon::connection(ErrorRegion, &ErrorRegions);
+				Halcon::count_obj(ErrorRegions, &NumObj);
+				Color_Class = 0;
+
+
+				Halcon::histo_to_thresh(RelativeHistoS, 2, &MinThresh, &MaxThresh);
+				if (HDevWindowStack::IsOpen())
+					set_colored(HDevWindowStack::GetActive(), 12);
+				Halcon::threshold(S_Seg, &Region, MinThresh, MaxThresh);
+
+
+				if (HDevWindowStack::IsOpen())
+					disp_obj(Region, HDevWindowStack::GetActive());
+				if (HDevWindowStack::IsOpen())
+					disp_obj(Image, HDevWindowStack::GetActive());
+				for (i = 1; i <= NumObj; i += 1)
+				{
+					select_obj(ErrorRegions, &Selected, i);
+					area_center(Selected, &Area, &R, &C);
+					if (0 != (Area > NG_area_lower))
+					{
+						if (HDevWindowStack::IsOpen())
+							disp_obj(Selected, HDevWindowStack::GetActive());
+						disp_message(WindowHandle, Area.ToString(".2"), "window", R, C, "black",
+							"true");
+						isOK = 0;
+					}
+				}
+				if (0 != (color_lower > PeakGrayS))
+				{
+					Color_Class = 0;
+				}
+				else
+				{
+					Color_Class = (PeakGrayS - color_lower) % color_sigma;
+				}
+
+
+
+			}
+			// catch (exception) 
+			catch (HException &HDevExpDefaultException)
+			{
+				HDevExpDefaultException.ToHTuple(&exception);
+				isOK = 0;
+				disp_message(WindowHandle, exception, "window", 10, 10, "black", "true");
+			}
+
+			Halcon::set_tposition(WindowHandle, 10, 10);
+			string_back = "■■■■■■■■■■■■■■■■■■■■";
+			Halcon::set_color(WindowHandle, "black");
+			Halcon::write_string(WindowHandle, string_back);
+			Halcon::set_color(WindowHandle, "white");
+			Halcon::set_tposition(WindowHandle, 10, 10);
+			Halcon::write_string(WindowHandle, (("S:" + (PeakGrayS.ToString(".3"))) + "clase:") + (Color_Class.ToString(".2")));
+			int ColorClass = Color_Class[0].I();
+			int IsOK = isOK[0].I();
+			int res = IsOK | (ColorClass << COLOR_GET);
+		}
+		catch (Halcon::HException Exception)
+		{
+			HTuple ErrorInfo;
+			Exception.ToHTuple(&ErrorInfo);
+			disp_message(WindowHandle, ErrorInfo, "window", 10, 10, "black", "true");
+			throw Exception;
+		}
+		return NG;
+#else
+
+		using namespace Halcon;
+		int error_information = UNKOWN_CAP;
 		int txt_y_pos = 10;
 #define TXT_GAP 45
 		// Local iconic variables 
@@ -682,6 +1073,7 @@ public:
 		// Local control variables 
 		HTuple  Width, Height, WindowHandle, Row, Column,Circularity, StartPhi, EndPhi, PointOrder, Radius;
 		HTuple  Num, Mean1, Deviation1, i,row1,col1,row2,col2;
+		long long _r1, _c1, _r2, _c2;
 
 		double r1 = p.front.r1;
 		double r2 = p.front.r2;
@@ -700,13 +1092,10 @@ public:
 	
 			gen_circle(&ROI_0, 455.5, 568.5, 300.02);
 			reduce_domain(src, ROI_0, &reduced);
-
-			//regiongrowing_mean (Image, RegionsMean, Row, Column, 3, 50)
-
 			threshold(reduced, &CapRegion, 20, 255);
 
 			connection(CapRegion, &ConnectedRegions);
-			select_shape_std(ConnectedRegions, &MaxArea, "max_area", 50);
+			select_shape_std(ConnectedRegions, &MaxArea, "max_area", 200);
 			reduce_domain(src, MaxArea, &reduced);
 
 
@@ -717,6 +1106,13 @@ public:
 			Halcon::gen_circle_contour_xld(&ContCircle, Row, Column, Radius, 0, 4 * (HTuple(0).Acos()), "positive", 1);
 
 			smallest_rectangle1(MaxArea, &row1, &col1, &row2, &col2);
+
+			std::cout << "number:" << col1.Num() << std::endl;;
+			if (col1.Num())
+			{
+				return NG;
+			}
+
 			cv::Rect rt(col1[0].I(),row1[0].I(),col2[0].I()-col1[0].I(),row2[0].I()-row1[0].I());
 			cv::Mat dt;
 			mat(rt).copyTo(dt);
@@ -729,7 +1125,6 @@ public:
 				printf("dl file not right or label wrong or not load file\n");
 			}
 			
-				
 
 			//"cyan");
 			set_color(Disp_Hd, "cyan");
@@ -813,14 +1208,27 @@ public:
 
 		set_color(Disp_Hd, "cyan");
 		Halcon::set_tposition(Disp_Hd, txt_y_pos += TXT_GAP, 20);
+
+
+
+
+
+
+
+
+
+		if (NG == NG&error_information) {
+			return NG;
+		}
 		switch (color)
 		{
-		case COLOR1:Halcon::write_string(Disp_Hd, "色号1"); break;
-		case COLOR2:Halcon::write_string(Disp_Hd, "色号2"); break;
-		case COLOR3:Halcon::write_string(Disp_Hd, "色号3"); break;
-		case COLOR4:Halcon::write_string(Disp_Hd, "色号4"); break;
-		case COLOR_NG:Halcon::write_string(Disp_Hd, "色号NG"); break;
+		case COLOR1:Halcon::write_string(Disp_Hd, "色号1"); return COLOR1; break;
+		case COLOR2:Halcon::write_string(Disp_Hd, "色号2"); return COLOR2; break;
+		case COLOR3:Halcon::write_string(Disp_Hd, "色号3"); return COLOR3; break;
+		case COLOR4:Halcon::write_string(Disp_Hd, "色号4"); return COLOR4; break;
+		case COLOR_NG:Halcon::write_string(Disp_Hd, "色号NG"); return COLOR_NG; break;
 		default:
+			return NG;
 			break;
 		}
 		return error_information;
@@ -828,6 +1236,7 @@ public:
 		if (NG == NG&error_information) {
 			return NG;
 		}
+#endif
 	}
 
 	/************************************图像检测部分END*********************************************************/
@@ -841,12 +1250,29 @@ public:
 		case STOP:stop(); return m_system_state;
 		case PAUSE:pause(); return m_system_state;
 		case START:start(); return m_system_state;
+		case CAMERA_SNAP:snap(); return m_system_state;
 		case ESTOP:e_stop(); return m_system_state;
 		case SYS_STATE: return m_system_state;
 		default: return m_system_state;
 		}
 	}
 
+	private:
+		int isSnap = 0;
+	public:
+	void setSnap() {
+		isSnap = 1;
+	}
+
+	inline int SnapState()
+	{
+		return isSnap;
+	}
+
+	void setNotSnap()
+	{
+		isSnap = 0;
+	}
 	//record system state
 	void record_state() {
 		std::lock_guard<std::mutex> lck(m_system_state_mutex);
@@ -885,8 +1311,19 @@ public:
 	//system start
 	void start() { 
 		_start();
+		//检查下条件，是否可以进行开始检测
 		m_system_state = START; 
 		DLOG(LOG_INFO, "sytem_start");
+	}
+
+	void snap()
+	{
+		//
+		if (m_system_state == START)
+		{
+			return;
+		}
+		m_system_state = CAMERA_SNAP;
 	}
 
 	void e_stop(){
@@ -1168,13 +1605,7 @@ public:
 		return 0;
 	}
 
-
-
-
-
 	/*find circle end*/
-	
-
 	//disp_hand
 	QLabel *disp_hd;
 	QLabel *disp_hd1;
@@ -1190,26 +1621,15 @@ public:
 	QLabel *disp_hd11;
 
 	QRect win_rect[MAX_WINDOW_NUM];
-
 	//HTuple hwindow_hand[MAX_WINDOW_NUM];
 	//halcon显示图片用
 	//HTuple hdisp_hand[MAX_WINDOW_NUM];
 	std::vector<HTuple> hdisp_hand;
-
-
-
-
-
-
 private:
-
-
 	int m_system_rec;
 	int m_system_state;
 	std::mutex m_system_state_mutex;
 public:
 	int alert;
-
-
 };
 
