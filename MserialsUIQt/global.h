@@ -10,9 +10,9 @@ using namespace Halcon;
 #ifndef __GLOBAL_VARS__
 #define __GLOBAL_VARS__
 
-
-
-
+#ifndef  TEST
+#define TEST
+#endif // ! TEST
 
 
 

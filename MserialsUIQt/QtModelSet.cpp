@@ -18,7 +18,7 @@ QtModelSet::QtModelSet(QWidget *parent)
 	: QDialog(parent)
 {
 	ui->setupUi(this);
-	resize(1024, 768);
+	resize(1280, 900);
 	pGridLayout = nullptr;
 	tabWidget = nullptr;
 	tabWidget1 = nullptr;
@@ -307,8 +307,8 @@ void QtModelSet::slotDiskDirShow()
 
 void QtModelSet::initSetParamsControl()
 {
-#define COL_WIDTH 317
-#define COL_HEIGHT 720
+#define COL_WIDTH 382
+#define COL_HEIGHT 800
 	//线路一的tab设置
 	tabWidget_Set_Line1  = new  QTabWidget(ParaWidget);
 	tabWidget_Set_Line1->resize(COL_WIDTH, COL_HEIGHT);
@@ -341,8 +341,8 @@ void QtModelSet::Line1_Settings()
 	pTreeWidget_line1_checking_params_stting = new QTreeWidget(widget1);
 	pTreeWidget_line1_checking_params_stting->setHeaderLabels(QStringList() << QString::fromLocal8Bit("参数") << QString::fromLocal8Bit("值"));
 
-	pTreeWidget_line1_checking_params_stting->setColumnWidth(0,2*COL_WIDTH/3 -10);
-	pTreeWidget_line1_checking_params_stting->setColumnWidth(1, COL_WIDTH / 3);
+	pTreeWidget_line1_checking_params_stting->setColumnWidth(0,COL_WIDTH/2-10);
+	pTreeWidget_line1_checking_params_stting->setColumnWidth(1, COL_WIDTH / 2);
 
 	root_item_line1_checking_params_setting = new QTreeWidgetItem(QStringList() << QString::fromLocal8Bit("铝盖底面检测参数"));
 	pTreeWidget_line1_checking_params_stting->addTopLevelItem(root_item_line1_checking_params_setting);
@@ -1479,7 +1479,7 @@ void QtModelSet::setValue(int a){
 		trans_from_rgb(Red, Green, Blue, &Hue, &Saturation, &Intensity, "hsv");
 		threshold(Saturation, &inner, a, 255);
 		h_disp_obj(m_disp_image.at(0), m_disp_hd.at(0));
-		h_disp_obj(inner, m_disp_hd.at(0));
+		disp_obj(inner, m_disp_hd.at(0));
 
 		Preference::GetIns()->prj->para_bak.threshold_back_cap = a;
 		std::cout << "value:" << a << std::endl;
@@ -1812,6 +1812,11 @@ void QtModelSet::_Button_One_Key_Detect()
 	try {
 		clock_t tick = clock();
 		Machine::GetIns()->back_cap_detect(m_disp_image.at(0), m_disp_hd.at(0), Preference::GetIns()->prj->para);
+		Machine::GetIns()->side_cap_detect(m_disp_image.at(1), m_disp_hd.at(1), Preference::GetIns()->prj->para);
+		Machine::GetIns()->side_cap_detect(m_disp_image.at(2), m_disp_hd.at(2), Preference::GetIns()->prj->para);
+		Machine::GetIns()->side_cap_detect(m_disp_image.at(3), m_disp_hd.at(3), Preference::GetIns()->prj->para);
+		Machine::GetIns()->side_cap_detect(m_disp_image.at(4), m_disp_hd.at(4), Preference::GetIns()->prj->para);
+		Machine::GetIns()->front_cap_detect(m_disp_image.at(5), m_disp_hd.at(5), Preference::GetIns()->prj->para);
 		std::cout << "cost first camera time is " << (clock() - tick) << " ms" << std::endl;
 	}
 	catch (std::out_of_range e)

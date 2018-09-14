@@ -71,11 +71,29 @@ struct _Param {
 
 
 
+	//第二个工位的参数，bug，应该分出成四个相机的参数，我只做了一组
+	double Mean_Var = 3;
 
+	double Cap_Mouth_Threshold = 45;
+	
+	double Cap_Border = 22;
+	//分割出瓶盖身的二值化参数
+	double S_Saturation_Var = 60;
+	//分割出压花的二值化参数
+	double Cap_Yahua = 60;
+	//压花上偏移量
+	double Cap_Yahua_Bias = 15;
+	//得到瓶盖面的下偏移量
+	double Cap_Body_Lower_Bias = 40;
+	//得到瓶盖面的上部边界偏移量
+	double Cap_Body_Upper_Bias = 5;
+	//不良区域最小面积
+	double Error_Area = 15;
+	double Error_LowerBias = -120;
+	double Error_UpperBias = -20;
 
 
 	//第三个工位的参数
-
 	//色斑面积最小值
 	double cap_error_area_var = 20;
 	//获取色斑偏移下限值

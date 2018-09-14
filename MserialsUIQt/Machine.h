@@ -442,6 +442,7 @@ public:
 
 				if (NCT1 && NCT1 != OCT1) {
 					pDlg->Camera1Delay.push_back(std::pair<clock_t, int>(Tick, Machine::UNKOWN_CAP));
+					
 				}
 				if (NCT2 && NCT2 != OCT2) {
 					pDlg->Camera2Delay.push_back(std::pair<clock_t, int>(Tick, Machine::UNKOWN_CAP));
@@ -455,30 +456,30 @@ public:
 			//严格的，如果这个地方超出了界限，会崩溃
 			try {
 				//触发相机1
-				if (pDlg->Camera1Delay.size() > 0 && (Tick-pDlg->Camera1Delay.begin()->first) > CAM1DELAY)
+				if (!pDlg->Camera1Delay.empty() && (Tick-pDlg->Camera1Delay.begin()->first) > CAM1DELAY)
 				{
 					//注意顺序，防止bug，要进行多线程保护
 					pDlg->Cam1Tick = static_cast<clock_t>(pDlg->Camera1Delay.begin()->first);
 					SetEvent(pDlg->_thread_line1);
-					printf("try to trigger camera1\n");
+					//printf("相机一触发的延时误差%f ms\n", Tick - pDlg->Cam1Tick - CAM1DELAY);
 					pDlg->Camera1Delay.pop_front();
 				}
 
 				//触发相机2
-				if (pDlg->Camera2Delay.size() > 0 && (Tick-pDlg->Camera2Delay.begin()->first) > CAM2DELAY)
+				if (!pDlg->Camera2Delay.empty() && (Tick-pDlg->Camera2Delay.begin()->first) > CAM2DELAY)
 				{
 					pDlg->Cam2Tick = static_cast<clock_t>(pDlg->Camera2Delay.begin()->first);
-					//
 					SetEvent(pDlg->_thread_line2);
+					//printf("相机二触发的延时误差%f ms\n", Tick - pDlg->Cam2Tick - CAM2DELAY);
 					pDlg->Camera2Delay.pop_front();
 				}
 
 				//触发相机3
-				if (pDlg->Camera3Delay.size() > 0 && (Tick-pDlg->Camera3Delay.begin()->first) > CAM3DELAY)
+				if (!pDlg->Camera3Delay.empty() && (Tick-pDlg->Camera3Delay.begin()->first) > CAM3DELAY)
 				{
 					pDlg->Cam3Tick = static_cast<clock_t>(pDlg->Camera3Delay.begin()->first);
-					//
 					SetEvent(pDlg->_thread_line3);
+					//printf("相机三触发的延时误差%f ms\n", Tick - pDlg->Cam3Tick - CAM3DELAY);
 					pDlg->Camera3Delay.pop_front();
 				}
 
@@ -775,7 +776,6 @@ public:
 		for (;;) {
 			::WaitForSingleObject(pDlg->_thread_line3, INFINITE);
 			//硬件触发相机
-			//but   
 			pDlg->m_mc->Write_Output_Ex(0, OUT_CAM3, 1);
 			//延时拍照
 			ResetEvent(pDlg->_thread_line3);
@@ -901,21 +901,198 @@ public:
 	//侧面检查函数
 	int side_cap_detect(const Halcon::Hobject &src, Halcon::HTuple &Disp_Hd, _Param p = _Param()) {
 		int res = OK;
+		using namespace Halcon;
+
+		// Local iconic variables 
+		Hobject  Image, ImageMeadian, Red, Green, Blue;
+		Hobject  Hue, Saturation, Intensity, ROI, ImageReduced, Thresholded;
+		Hobject  Connections, SelectedShapes, MaxSelectedShape, HueReduced;
+		Hobject  SaturationReduced, IntensityReduced, CapMouth, CapMouthSelected;
+		Hobject  CapMouth_, CapMouthMoved, CapYahua, CapBody, Ellipse_body;
+		Hobject  Ellipse, ROI_Cap, ROI_0, NoNeedDetect, DetetionArea;
+		Hobject  Area_ToDetection, Area_ToDetection_, Area_To_Find_Dots;
+		Hobject  ErrorRegion, ErrorRegions, ErrorSelected;
+
+
+		// Local control variables 
+		HTuple  Mean_Var, Cap_Mouth, Cap_Border;
+		HTuple  S_Saturation_Var, Cap_Yahua, Cap_Yahua_Bias, Cap_Body_Lower_Bias;
+		HTuple  Cap_Body_Upper_Bias, Error_Area, Error_LowerBias;
+		HTuple  Error_UpperBias, Start, ImageFiles, Index, Width;
+		HTuple  Height, WindowHandle, WindowHandle1, CapCenter;
+		HTuple  Row, Col, Area, RowCapMouth, ColCapMouth, r1, c1;
+		HTuple  r2, c2, center_y, center_x, AbsoluteHistoS, RelativeHisto;
+		HTuple  PeakGray, isOK, ErrorNum, i, End, ms_cost, exception;
+
+
+		// Install default exception handler 
+		HException::InstallHHandler(&CPPExpDefaultExceptionHandler);
+
+		//参数列表更新
+		Mean_Var = p.Mean_Var;
+		Cap_Mouth = p.Cap_Mouth_Threshold;
+		Cap_Border = p.Cap_Border;
+		S_Saturation_Var = p.S_Saturation_Var;
+		Cap_Yahua = p.Cap_Yahua;
+		
+		Cap_Yahua_Bias = p.Cap_Yahua_Bias;
+		Cap_Body_Lower_Bias = p.Cap_Body_Lower_Bias;
+		Cap_Body_Upper_Bias = p.Cap_Body_Upper_Bias;
+
+		Error_Area = p.Error_Area;
+		Error_LowerBias = p.Error_LowerBias;
+		Error_UpperBias = p.Error_UpperBias;
+
+
 		try
 		{
-			Halcon::set_check("~give_error");
-			h_disp_obj(src, Disp_Hd);
+			WindowHandle = Disp_Hd;
+			count_seconds(&Start);
+			get_image_size(Image, &Width, &Height);
+			
+			set_colored(WindowHandle, 12);
+			
+
+			//第一步，将图像分成HSV，因为该色彩空间可以分出来
+			median_image(Image, &ImageMeadian, "circle", 2, "mirrored");
+			decompose3(ImageMeadian, &Red, &Green, &Blue);
+			trans_from_rgb(Red, Green, Blue, &Hue, &Saturation, &Intensity, "hsv");
+
+			/**
+			disp_obj(Hue, WindowHandle);
+			disp_obj(Saturation, WindowHandle);
+			disp_obj(Intensity, WindowHandle);
+			*/
+			//第二步画出检测区域,并找到瓶盖
+			gen_rectangle1(&ROI, 0, 0, 759.5, 962.5);
+			reduce_domain(Saturation, ROI, &ImageReduced);
+			threshold(ImageReduced, &Thresholded, S_Saturation_Var, 255);
+
+			//disp_obj(Thresholded, WindowHandle);
+			connection(Thresholded, &Connections);
+			select_shape(Connections, &SelectedShapes, "width", "and", 100, 400);
+			select_shape(Connections, &SelectedShapes, "height", "and", 100, 400);
+			select_shape_std(SelectedShapes, &MaxSelectedShape, "max_area", 0.6);
+
+			//disp_obj(Image, WindowHandle);
+
+			//disp_obj(MaxSelectedShape, WindowHandle);
+
+
+			reduce_domain(Hue, MaxSelectedShape, &HueReduced);
+			reduce_domain(Saturation, MaxSelectedShape, &SaturationReduced);
+			reduce_domain(Intensity, MaxSelectedShape, &IntensityReduced);
+			area_center(MaxSelectedShape, &CapCenter, &Row, &Col);
+
+			threshold(IntensityReduced, &CapMouth, 0, Cap_Mouth);
+			//bug 没进行区域选
+			connection(CapMouth, &CapMouth);
+			select_shape_std(CapMouth, &CapMouthSelected, "max_area", 0.6);
+			erosion_circle(CapMouthSelected, &CapMouth_, Cap_Border);
+
+			move_region(CapMouthSelected, &CapMouthMoved, Cap_Body_Upper_Bias, 0);
+			area_center(CapMouthMoved, &Area, &RowCapMouth, &ColCapMouth);
+
+
+
+			//根据所得到的row 和 col先框出来瓶盖，瓶盖本省区域为压花和瓶口之间,因为有些变形等其他因素 只能局部找到
+			//用瓶口的边界进行偏移
+
+			//重新框选出瓶盖出来，这次框选目的是为了减少左右边界，因为左右边界光源太暗淡，无法打光
+			smallest_rectangle1(MaxSelectedShape, &r1, &c1, &r2, &c2);
+
+
+			set_color(WindowHandle, "blue");
+			threshold(IntensityReduced, &CapYahua, 0, Cap_Yahua);
+			threshold(IntensityReduced, &CapBody, Cap_Yahua, 255);
+			//大概猜一下弧度，用这个弧度，边框去套瓶盖本身
+			center_y = (r2 - ((c2 - c1)*0.28)) - Cap_Body_Lower_Bias;
+			center_x = (c1 + c2)*0.5;
+			gen_ellipse(&Ellipse_body, center_y, center_x, 0, (c2 - c1)*0.5, (c2 - c1)*0.28);
+			center_y = (r2 - ((c2 - c1)*0.28)) - Cap_Yahua_Bias;
+			gen_ellipse(&Ellipse, center_y, center_x, 0, (c2 - c1)*0.5, (c2 - c1)*0.28);
+
+			set_color(WindowHandle, "cyan");
+			//intersection (Ellipse_body, ROI_Cap, ROI_0)
+			difference(Ellipse, Ellipse_body, &NoNeedDetect);
+
+
+
+			gen_rectangle1(&ROI_Cap, RowCapMouth, (c1 + Cap_Border) + 5, r2, (c2 - Cap_Border) - 5);
+
+			set_color(WindowHandle, "yellow");
+			reduce_domain(ROI_Cap, CapBody, &DetetionArea);
+			difference(DetetionArea, CapMouthMoved, &DetetionArea);
+			connection(DetetionArea, &Area_ToDetection);
+			//500这里可能需要参数
+			select_shape(Area_ToDetection, &Area_ToDetection, "area", "and", 500, 999999);
+			//union1 (Area_ToDetection, Area_ToDetection)
+			//fill_up (Area_ToDetection, Area_ToDetection)
+			difference(Area_ToDetection, NoNeedDetect, &Area_ToDetection_);
+
+			connection(Area_ToDetection_, &Area_ToDetection_);
+			select_shape_std(Area_ToDetection_, &Area_ToDetection, "max_area", 0.6);
+			fill_up(Area_ToDetection, &Area_ToDetection);
+
+			reduce_domain(Saturation, Area_ToDetection, &Area_To_Find_Dots);
+			gray_histo(Area_ToDetection, Area_To_Find_Dots, &AbsoluteHistoS, &RelativeHisto);
+
+			PeakGray = (AbsoluteHistoS.SortIndex())[255];
+
+			
+			threshold(Area_To_Find_Dots, &ErrorRegion, PeakGray + Error_LowerBias, PeakGray + Error_UpperBias);
+			connection(ErrorRegion, &ErrorRegions);
+			isOK = 1;
+			//对不良区域进行选择
+
+			h_disp_obj(Image, WindowHandle);
+			set_draw(WindowHandle, "margin");
+			set_color(WindowHandle, "green");
+			disp_obj(CapMouth_, WindowHandle);
+			disp_obj(Area_ToDetection, WindowHandle);
+			
+			set_draw(WindowHandle, "fill");
+			count_obj(ErrorRegions, &ErrorNum);
+			for (i = 1; i <= ErrorNum; i += 1)
+			{
+				select_obj(ErrorRegions, &ErrorSelected, i);
+				area_center(ErrorSelected, &Area, &Row, &Col);
+				if (0 != (Area>Error_Area))
+				{
+					set_color(WindowHandle, "red");
+					disp_obj(ErrorSelected, WindowHandle);
+					set_color(WindowHandle, "slate blue");
+					set_tposition(WindowHandle, Row, Col);
+					write_string(WindowHandle, Area);
+					res = NG;
+					//disp_message (WindowHandle, Area$'.', 'image', Row, Col, 'black', 'true')
+				}
+			}
+	
+
+			//找到比Row高的黑色区域,该区域是瓶盖的
+
+
+			//找到比Row低的黑色区域，该区域是压环的
+
+
+
+			count_seconds(&End);
+			ms_cost = (End - Start) * 1000;
+			disp_message(WindowHandle, ("TimeThreshold: " + (ms_cost.ToString(".5"))) + " ms",
+				"image", 0, 20, "black", "true");
 
 
 		}
-		catch (Halcon::HException e)
+		// catch (exception) 
+		catch (HException &HDevExpDefaultException)
 		{
-			Halcon::HTuple ExceptionInformation;
-			e.ToHTuple(&ExceptionInformation);
-			set_tposition(Disp_Hd, 10, 10);
-			write_string(Disp_Hd, "分割错误:" + ExceptionInformation);
+			HDevExpDefaultException.ToHTuple(&exception);
+			disp_message(WindowHandle, exception, "image", 0, 20, "black", "true");
+			res = NG;
 		}
-		return NG;
+		return res;
+					
 	}
 
 
@@ -927,7 +1104,6 @@ public:
 #if 1
 	
 		int TextGap = 45;
-
 		// Local iconic variables 
 		Hobject  red, green, blue, H, S, V, ImageMedian;
 		Hobject  Regions, ConnectedRegions, SelectedRegion, FilledRegion;
@@ -963,8 +1139,6 @@ public:
 		NG_area_lower = 50;
 		color_sigma = 12;
 		color_lower = 100;
-
-
 		try {
 			get_image_size(Image, &Width, &Height);
 			decompose3(Image, &red, &green, &blue);
@@ -979,7 +1153,6 @@ public:
 			fill_up(SelectedRegion, &FilledRegion);
 			erosion_circle(FilledRegion, &FilledRegion, erosion_di);
 			area_center(FilledRegion, &Area, &Row, &Col);
-			//�Ż���ֻ���һ��ͨ���Ϳ�����
 			reduce_domain(Image, FilledRegion, &ImageReduced);
 			median_image(ImageReduced, &Image_Meaned, "circle", mean_filter_var, "mirrored");
 			decompose3(Image_Meaned, &red, &green, &blue);
@@ -993,14 +1166,6 @@ public:
 				Halcon::threshold(S_Seg, &ErrorRegion, PeakGrayS + peak_lower, PeakGrayS + peak_upper);
 				Halcon::connection(ErrorRegion, &ErrorRegions);
 				Halcon::count_obj(ErrorRegions, &NumObj);
-				
-
-				/**
-				Halcon::histo_to_thresh(RelativeHistoS, 2, &MinThresh, &MaxThresh);
-
-				set_colored(WindowHandle, 12);
-				Halcon::threshold(S_Seg, &Region, MinThresh, MaxThresh);
-				*/
 				h_disp_obj(Image, WindowHandle);
 				for (i = 1; i <= NumObj; i += 1)
 				{
@@ -1010,7 +1175,7 @@ public:
 					{
 						Halcon::set_color(WindowHandle, "red");
 					    disp_obj(Selected, WindowHandle);
-						Halcon::set_color(WindowHandle, "#FF00FF");
+						Halcon::set_color(WindowHandle, "cyan");
 						Halcon::set_tposition(WindowHandle, R, C);
 						Halcon::write_string(WindowHandle, Area.ToString(".2"));
 						//disp_message(WindowHandle, Area.ToString(".2"), "window", R, C, "black",
@@ -1026,9 +1191,6 @@ public:
 				{
 					Color_Class = (PeakGrayS - color_lower) % color_sigma;
 				}
-
-
-
 			}
 			// catch (exception) 
 			catch (HException &HDevExpDefaultException)
@@ -1064,7 +1226,7 @@ public:
 			HTuple ErrorInfo;
 			Exception.ToHTuple(&ErrorInfo);
 			disp_message(WindowHandle, ErrorInfo, "window", 10, 10, "black", "true");
-			throw Exception;
+			//throw Exception;
 		}
 		return NG;
 #else
@@ -1408,10 +1570,11 @@ public:
 	}
 
 
-	void h_disp_obj(const Halcon::Hobject & obj, const Halcon::HTuple & disp_hand)
+	static void h_disp_obj(const Halcon::Hobject & obj, const Halcon::HTuple & disp_hand)
 	{
 		try
 		{
+
 			Halcon::set_check("~give_error");
 			Hlong w, h;
 			Halcon::get_image_pointer1(obj, NULL, NULL, &w, &h);

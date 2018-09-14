@@ -2,7 +2,7 @@
 #include "Common.h"
 #include "MSerialsCam.h"
 #include "halconcpp.h"
-
+#include <mutex>
 
 void displayMat(const cv::Mat &image, QLabel *disp_hand, QWidget* widget)
 {
@@ -153,6 +153,8 @@ void SnapHobj(Halcon::Hobject &Image, int vendor, int cam_num, int delay)
 	int w = 0;
 	int h = 0;
 	int ch = 1;
+	std::mutex mtx[12];
+	std::lock_guard<std::mutex> lck(mtx[cam_num]);
 	unsigned char * img = NULL;
 	//因为电脑性能不是很好，所以采用这个snap来采取图片
 	Snap(w, h, &img, ch, vendor, cam_num, delay);
